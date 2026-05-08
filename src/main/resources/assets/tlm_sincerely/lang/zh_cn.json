@@ -1,5 +1,8 @@
 {
     "chat.tlm_sincerely.maid_not_found": "附近没有找到这个名字的女仆",
     "chat.tlm_sincerely.no_maid_nearby": "附近没有可以对话的女仆",
-    "chat.tlm_sincerely.invalid_format": "格式错误。请使用: /tlmchat to <名字> <消息>"
+    "chat.tlm_sincerely.maid_list_header": "附近的女仆列表：",
+    "chat.tlm_sincerely.multiple_same_name": "找到多个名为 '%s' 的女仆，已选择最近的。UUID: %s",
+    "chat.tlm_sincerely.maid_not_found_uuid": "未找到 UUID 对应的女仆",
+    "chat.tlm_sincerely.list_usage_hint": "使用 /tlmchat uuid <UUID> <消息> 进行精确匹配"
 }

@@ -2,6 +2,8 @@
 build/
 run/
 wiki-reference/
+libs/
 *.log
 *.jar
 !gradle/wrapper/*.jar
+.kilo/node_modules/

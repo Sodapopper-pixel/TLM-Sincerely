@@ -194,10 +194,11 @@ public static final ForgeConfigSpec.BooleanValue CANCEL_ORIGINAL_MESSAGE;
 
 ### Phase 2: 聊天栏对话 ✓
 1. 创建 `MaidFinder` 类（女仆查找逻辑）
-2. 创建 `ChatParser` 类（消息解析）
-3. 创建 `ChatBarHandler` 类（事件监听）
-4. 注册 Forge 事件总线
-5. 构建成功
+2. 创建 `ChatCommand` 类（Brigadier 命令）
+3. 注册 Forge 事件总线
+4. 实现同名女仆提醒机制
+5. 添加 UUID 精确匹配和列表命令
+6. 构建成功
 
 ### Phase 3: 配置与优化（可选）
 1. 添加配置文件

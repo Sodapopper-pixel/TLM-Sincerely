@@ -76,6 +76,13 @@ repositories {
             includeGroup "mezz.jei"
         }
     }
+    maven {
+        url = "https://maven.createmod.net"
+        content {
+            includeGroup "net.createmod.ponder"
+            includeGroup "dev.engine-room.flywheel"
+        }
+    }
 }
 
 dependencies {
@@ -91,6 +98,7 @@ dependencies {
     runtimeOnly fg.deobf("maven.modrinth:sophisticated-core:1.20.1-1.2.80.1073")
     runtimeOnly fg.deobf("maven.modrinth:embeddium:0.3.31+mc1.20.1")
     runtimeOnly fg.deobf("curse.maven:maid-storage-manager-1210244:6315697")
+    runtimeOnly fg.deobf("net.createmod.ponder:Ponder-Forge-1.20.1:1.0.80")
     runtimeOnly fg.deobf("maven.modrinth:create:1.20.1-6.0.6")
     runtimeOnly fg.deobf("maven.modrinth:kaleidoscope-cookery:1.2.0-forge+mc1.20.1")
     
