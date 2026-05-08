@@ -1,0 +1,5 @@
+{
+    "chat.tlm_sincerely.maid_not_found": "No maid found with that name nearby",
+    "chat.tlm_sincerely.no_maid_nearby": "No maid nearby to chat with",
+    "chat.tlm_sincerely.invalid_format": "Invalid format. Use: /tlmchat to <name> <message>"
+}

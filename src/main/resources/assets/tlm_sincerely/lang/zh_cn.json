@@ -1,0 +1,5 @@
+{
+    "chat.tlm_sincerely.maid_not_found": "附近没有找到这个名字的女仆",
+    "chat.tlm_sincerely.no_maid_nearby": "附近没有可以对话的女仆",
+    "chat.tlm_sincerely.invalid_format": "格式错误。请使用: /tlmchat to <名字> <消息>"
+}

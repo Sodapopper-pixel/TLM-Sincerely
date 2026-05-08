@@ -1,0 +1,160 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'net.minecraftforge.gradle' version '[6.0.16,6.2)'
+    id 'org.parchmentmc.librarian.forgegradle' version '1.+'
+}
+
+group = mod_group_id
+version = mod_version
+archivesBaseName = "${mod_id}-${minecraft_version}-forge"
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+}
+
+minecraft {
+    mappings channel: mapping_channel, version: mapping_version
+    copyIdeResources = true
+    runs {
+        configureEach {
+            jvmArgs = [
+                    "-XX:+IgnoreUnrecognizedVMOptions",
+                    "-XX:+AllowEnhancedClassRedefinition"
+            ]
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+            mods {
+                "${mod_id}" {
+                    source sourceSets.main
+                }
+            }
+        }
+        client {
+            property 'forge.enabledGameTestNamespaces', mod_id
+        }
+        server {
+            property 'forge.enabledGameTestNamespaces', mod_id
+            args '--nogui'
+        }
+        gameTestServer {
+            property 'forge.enabledGameTestNamespaces', mod_id
+        }
+        data {
+            workingDirectory project.file('run')
+            args '--mod', mod_id, '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
+        }
+    }
+}
+
+sourceSets.main.resources { srcDir 'src/generated/resources' }
+
+repositories {
+    flatDir {
+        dir 'libs'
+    }
+    maven {
+        url = "https://api.modrinth.com/maven"
+        content {
+            includeGroup "maven.modrinth"
+        }
+    }
+    maven {
+        name = "Curse Maven"
+        url = "https://www.cursemaven.com"
+        content {
+            includeGroup "curse.maven"
+        }
+    }
+    maven {
+        name = "Jared's maven"
+        url = "https://maven.blamejared.com/"
+        content {
+            includeGroup "mezz.jei"
+        }
+    }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    implementation fg.deobf("maven.modrinth:touhou-little-maid:1.5.2-forge+mc1.20.1")
+    
+    // Maven dependencies (auto-download)
+    runtimeOnly fg.deobf("mezz.jei:jei-1.20.1-forge:15.20.0.106")
+    runtimeOnly fg.deobf("curse.maven:jade-324717:5072729")
+    runtimeOnly fg.deobf("maven.modrinth:curios:5.14.1+1.20.1-forge")
+    runtimeOnly fg.deobf("maven.modrinth:farmers-delight:1.20.1-1.2.6-forge")
+    runtimeOnly fg.deobf("maven.modrinth:sophisticated-backpacks:1.20.1-3.23.23.1297")
+    runtimeOnly fg.deobf("maven.modrinth:sophisticated-core:1.20.1-1.2.80.1073")
+    runtimeOnly fg.deobf("maven.modrinth:embeddium:0.3.31+mc1.20.1")
+    runtimeOnly fg.deobf("curse.maven:maid-storage-manager-1210244:6315697")
+    runtimeOnly fg.deobf("maven.modrinth:create:1.20.1-6.0.6")
+    runtimeOnly fg.deobf("maven.modrinth:kaleidoscope-cookery:1.2.0-forge+mc1.20.1")
+    
+    // Local libs (flatDir)
+    runtimeOnly fg.deobf("libs:catalogue-forge:1.20.1-1.8.0")
+    runtimeOnly fg.deobf("libs:configured-forge:1.20.1-2.2.3")
+    runtimeOnly fg.deobf("libs:Searchables-forge:1.0.3")
+    runtimeOnly fg.deobf("libs:Controlling-forge:1.20.1-12.0.2")
+    runtimeOnly fg.deobf("libs:MouseTweaks-forge:2.25.1")
+    runtimeOnly fg.deobf("libs:visual_keybinder:1.20.1-0.1.11")
+    runtimeOnly fg.deobf("libs:modnametooltip-forge:1.20.1-1.20.0")
+    runtimeOnly fg.deobf("libs:ModernUI-Forge:1.20.1-3.12.0.1")
+    runtimeOnly fg.deobf("libs:maid_useful_task-forge:1.20.1-1.4.0")
+    runtimeOnly fg.deobf("libs:maidsoulkitchen-forge:1.20.1-0.3.0.9")
+    
+    // Cloth Config API
+    runtimeOnly fg.deobf("libs:cloth-config-forge:11.1.136")
+}
+
+// Copy local mods with mixin to run/mods directory (avoids refMap issues in dev environment)
+tasks.register('copyModsToLocalRun', Copy) {
+    from 'libs'
+    include 'IMBlocker-forge-*.jar'
+    include 'dynamic-fps-forge-*.jar'
+    into 'run/mods'
+}
+
+processResources {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            forge_version          : forge_version,
+            forge_version_range    : forge_version_range,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_description        : mod_description
+    ]
+    inputs.properties replaceProperties
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties + [project: project]
+    }
+}
+
+jar {
+    manifest {
+        attributes([
+                "Implementation-Title"  : project.name,
+                "Implementation-Version": "${version}"
+        ])
+    }
+    finalizedBy 'reobfJar'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}

@@ -1,0 +1,7 @@
+.gradle/
+build/
+run/
+wiki-reference/
+*.log
+*.jar
+!gradle/wrapper/*.jar

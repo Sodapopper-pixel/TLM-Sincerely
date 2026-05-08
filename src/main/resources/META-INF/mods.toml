@@ -1,0 +1,31 @@
+modLoader = "javafml"
+loaderVersion = "[47,)"
+license = "MIT"
+
+[[mods]]
+modId = "tlm_sincerely"
+version = "1.0.0"
+displayName = "TLM Sincerely"
+authors = "terk"
+description = '''Touhou Little Maid addon - Chat bar conversation'''
+
+[[dependencies.tlm_sincerely]]
+modId = "forge"
+mandatory = true
+versionRange = "[47,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.tlm_sincerely]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[1.20.1,1.21)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.tlm_sincerely]]
+modId = "touhou_little_maid"
+mandatory = true
+versionRange = "[1.5.1,)"
+ordering = "AFTER"
+side = "BOTH"
