@@ -30,6 +30,35 @@ property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/ou
 - `mixin.env.remapRefMap` 缺失时，Embeddium 的 `DrawContextMixin` 会抛出 `InvalidInjectionException`
 - 该错误堆栈指向 Embeddium，但根因是 build.gradle 缺少 Mixin 全局 JVM 参数
 
+## Mixin 开发笔记
+
+### compatibilityLevel 必须匹配 Mixin 版本
+Mixin 0.8.5 最大支持 `JAVA_13`，不能写 `JAVA_17`。写错会导致 Mixin 类不加载。
+```json
+{ "compatibilityLevel": "JAVA_8" }
+```
+
+### 自定义方法需要 `remap = false`
+- 主模组/第三方 mod 的自定义方法（非原版 Minecraft）**没有 SRG 映射**
+- `@Inject(method = "...", remap = false)` — 不加会编译失败：`Unable to locate obfuscation mapping`
+- `@Accessor` 也不需要特殊处理（自定义字段名不会被 remap）
+
+### @Redirect target 与 Forge 方法
+`ServerPlayer.sendSystemMessage(Component)` 是 **Forge 打补丁添加的便捷方法**，不是原版方法。
+- 原版方法是 `displayClientMessage(Component, boolean)`（SRG: `m_213846_`）
+- 如果 `@Redirect` 不加 `remap = false`，refmap 会错误映射到原版方法（参数数量不匹配），导致注入永远不命中
+- **解决方案**：对 Forge 添加的方法使用 `@Redirect(remap = false)`
+
+### mixingradle refmap 路径
+- 生成位置：`build/tmp/compileJava/compileJava-refmap.json`
+- `add sourceSets.main` 会自动复制到 jar 和 classpath
+- dev 环境 WARN "could not read refmap" 可忽略（Parchment 环境不需要）
+- jar 出现 refmap 重复时加 `duplicatesStrategy = DuplicatesStrategy.EXCLUDE`
+
+### 编译失败排除
+- `error: package org.spongepowered.asm.mixin.injection.wrap does not exist` → `@WrapOperation` 来自 MixinExtras，不包含在 `mixingradle 0.7 + Mixin 0.8.5` 中。需要额外添加 MixinExtras 依赖或改用 `@Redirect`
+- `Class version 61 required is higher than the class version supported (JAVA_8 supports class version 52)` → 无影响的 WARN，仅表示 Mixin 运行时 class version 高于声明的 compatibilityLevel
+
 ## 测试流程
 
 ```

@@ -20,50 +20,54 @@
 
 ## 已实现功能 ✓
 
-### 一、聊天栏女仆对话
+### 一、聊天栏女仆对话（基本实现）
 
 #### 1. 基础对话命令
 - ✓ `/tlmchat <消息>` - 与最近女仆对话
 - ✓ `/tlmchat to <名字> <消息>` - 与指定名字女仆对话
 - ✓ `/tlmchat uuid <UUID> <消息>` - 与指定 UUID 女仆对话
 - ✓ `/tlmchat list` - 显示附近女仆列表
+- ✓ Tab 补全（女仆名字、UUID，仅命令环境）
 
 #### 2. 模式切换命令
 - ✓ `/tlmchat mode` - 切换女仆对话模式
 - ✓ `/tlmchat mode on/off` - 开启/关闭女仆对话模式
 - ✓ `/tlmchat global` - 切换全局/私聊模式
 
-#### 3. 女仆查找逻辑
+#### 3. 聊天栏对话（ServerChatEvent）
+- ✓ 聊天栏输入自动拦截（需开启女仆对话模式）
+- ✓ `@名字` 前缀始终解析（不依赖严格前缀模式开关）
+- ✓ 严格前缀模式：开启后仅 @名字 消息发给女仆
+- ✓ 自动对话范围：无前缀时自动匹配最近女仆
+- ✓ 全局/私聊控制：玩家消息广播/隐藏
+- ✓ 女仆回复全局广播（Mixin `ChatBubbleManager.addLLMChatText`）
+
+#### 4. 女仆查找逻辑
 - ✓ MaidFinder - 女仆查找算法（模糊匹配、距离优先）
 - ✓ 同名女仆提醒（黄色提示 + UUID 截断）
-- ✓ Tab 补全（女仆名字、UUID）
 
-#### 4. 配置系统
-- ✓ ForgeConfigSpec 配置文件
-- ✓ Configured 模组 GUI 支持
-- ✓ 配置项：对话模式、全局可见、前缀要求、对话范围
+#### 5. 配置系统
+- ✓ 主模组风格 subconfig 分类（ChatBarConfig → GeneralConfig）
+- ✓ Cloth Config GUI（ConfigScreen）
+- ✓ 配置项：女仆对话模式、全局聊天可见、严格前缀模式、自动对话范围、前缀字符
 
-#### 5. 国际化
-- ✓ zh_cn / en_us 语言文件
+#### 6. 国际化
+- ✓ zh_cn / en_us 完整语言文件
+
+#### 7. 已知限制
+- ⚠ 聊天栏 Tab 补全仅命令环境生效（需 Mixin ChatScreen）
+- ⚠ 女仆回复广播需多玩家环境验证（单人无感知差异）
+- ⚠ 聊天栏 GUI 按钮暂未实现（方案待定）
 
 ---
 
 ## 待实现功能 ⏸
 
-### 一、聊天栏女仆对话（完善）
+### 一、聊天栏女仆对话（待完善）
 
-#### 6. 聊天栏 GUI 按钮
+#### 聊天栏 GUI 按钮
 - ⏸ Mixin ChatScreen 注入按钮
-- ⏸ 按钮位置：输入框上方右侧
-- ⏸ 焦点恢复问题待解决
 - ⏸ 备选方案：按键绑定 / Overlay HUD
-
-#### 7. 聊天事件监听
-- ⏸ ServerChatEvent 监听
-- ⏸ 前缀解析（`@名字` 格式）
-- ⏸ 无前缀自动对话
-
----
 
 ### 二、工作优先级排序
 
@@ -120,9 +124,11 @@
 ```
 
 ### 配置项参考
-- `ButtonEnabled` - 聊天栏按钮开关（暂未生效）
 - `ChatModeEnabled` - 女仆对话模式开关
-- `GlobalChatVisible` - 全局聊天可见性
-- `RequirePrefix` - 是否需要前缀
+- `GlobalChatVisible` - 全局聊天可见性（控制玩家消息和女仆回复）
+- `RequirePrefix` - 严格前缀模式
 - `AutoChatRange` - 自动对话范围
 - `PrefixPattern` - 前缀字符
+
+### 相关文档
+- `CHATBAR.md` - 聊天栏女仆对话功能开发文档（架构、数据流、Mixin 细节）

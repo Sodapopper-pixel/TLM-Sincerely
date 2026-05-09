@@ -3,7 +3,6 @@ package com.github.tartaricacid.tlm_sincerely.config.subconfig;
 import net.minecraftforge.common.ForgeConfigSpec;
 
 public final class ChatBarConfig {
-    public static ForgeConfigSpec.BooleanValue BUTTON_ENABLED;
     public static ForgeConfigSpec.BooleanValue CHAT_MODE;
     public static ForgeConfigSpec.BooleanValue GLOBAL_VISIBLE;
     public static ForgeConfigSpec.BooleanValue REQUIRE_PREFIX;
@@ -12,9 +11,6 @@ public final class ChatBarConfig {
 
     public static void init(ForgeConfigSpec.Builder builder) {
         builder.push("chatbar");
-
-        builder.comment("Whether to enable chat bar quick buttons");
-        BUTTON_ENABLED = builder.define("ButtonEnabled", true);
 
         builder.comment("Chat with maid mode (button toggle state, default off)");
         CHAT_MODE = builder.define("ChatModeEnabled", false);

@@ -1,0 +1,14 @@
+{
+    "required": true,
+    "minVersion": "0.8",
+    "package": "com.github.tartaricacid.tlm_sincerely.mixin",
+    "compatibilityLevel": "JAVA_8",
+    "refmap": "tlm_sincerely.refmap.json",
+    "mixins": [
+        "MaidChatBroadcastMixin"
+    ],
+    "client": [],
+    "injectors": {
+        "defaultRequire": 1
+    }
+}

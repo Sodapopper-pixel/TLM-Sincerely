@@ -21,14 +21,6 @@ public final class ConfigScreen {
                 Component.translatable("config.tlm_sincerely.chatbar"));
 
         chatbar.addEntry(entryBuilder.startBooleanToggle(
-                        Component.translatable("config.tlm_sincerely.chatbar.button_enabled"),
-                        ChatBarConfig.BUTTON_ENABLED.get())
-                .setDefaultValue(true)
-                .setTooltip(Component.translatable("config.tlm_sincerely.chatbar.button_enabled.tooltip"))
-                .setSaveConsumer(ChatBarConfig.BUTTON_ENABLED::set)
-                .build());
-
-        chatbar.addEntry(entryBuilder.startBooleanToggle(
                         Component.translatable("config.tlm_sincerely.chatbar.chat_mode"),
                         ChatBarConfig.CHAT_MODE.get())
                 .setDefaultValue(false)

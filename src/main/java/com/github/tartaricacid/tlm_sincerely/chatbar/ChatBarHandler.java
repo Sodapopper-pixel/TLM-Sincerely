@@ -32,29 +32,29 @@ public final class ChatBarHandler {
         EntityMaid targetMaid = null;
         String chatMessage = rawMessage;
 
-        if (ChatBarConfig.REQUIRE_PREFIX.get()) {
-            Pattern pattern = Pattern.compile("^" + Pattern.quote(prefix) + "(.+?)\\s+(.+)$");
-            Matcher matcher = pattern.matcher(rawMessage);
-            if (matcher.find()) {
-                String name = matcher.group(1);
-                chatMessage = matcher.group(2);
-                MaidFinder.FindResult result = MaidFinder.findByName(player, name);
-                if (result.hasMaid()) {
-                    targetMaid = result.maid();
-                    if (result.hasMultipleMatches()) {
-                        String uuidShort = targetMaid.getUUID().toString().substring(0, 8);
-                        player.sendSystemMessage(Component.translatable(
-                                "chat.tlm_sincerely.multiple_same_name", name, uuidShort
-                        ).withStyle(ChatFormatting.YELLOW));
-                    }
-                } else {
-                    player.sendSystemMessage(Component.translatable("chat.tlm_sincerely.maid_not_found")
-                            .withStyle(ChatFormatting.RED));
-                    event.setCanceled(true);
-                    return;
+        // 1. 始终尝试解析 @前缀
+        Pattern pattern = Pattern.compile("^" + Pattern.quote(prefix) + "(.+?)\\s+(.+)$");
+        Matcher matcher = pattern.matcher(rawMessage);
+        if (matcher.find()) {
+            String name = matcher.group(1);
+            chatMessage = matcher.group(2);
+            MaidFinder.FindResult result = MaidFinder.findByName(player, name);
+            if (result.hasMaid()) {
+                targetMaid = result.maid();
+                if (result.hasMultipleMatches()) {
+                    String uuidShort = targetMaid.getUUID().toString().substring(0, 8);
+                    player.sendSystemMessage(Component.translatable(
+                            "chat.tlm_sincerely.multiple_same_name", name, uuidShort
+                    ).withStyle(ChatFormatting.YELLOW));
                 }
+            } else {
+                player.sendSystemMessage(Component.translatable("chat.tlm_sincerely.maid_not_found")
+                        .withStyle(ChatFormatting.RED));
             }
-        } else {
+        }
+
+        // 2. 无前缀消息 + REQUIRE_PREFIX=false → 自动匹配最近女仆
+        if (targetMaid == null && !ChatBarConfig.REQUIRE_PREFIX.get()) {
             double range = ChatBarConfig.AUTO_CHAT_RANGE.get();
             if (range > 0) {
                 List<EntityMaid> maids = MaidFinder.getOwnedMaids(player, range);
