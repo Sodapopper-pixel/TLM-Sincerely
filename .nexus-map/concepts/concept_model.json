@@ -1,0 +1,219 @@
+{
+  "$schema": "nexus-mapper/concept-model/v1",
+  "generated_at": "2026-05-09T15:30:00+08:00",
+  "repo_path": "D:\\Minecraft\\TLM-Sincerely",
+  "generator": "nexus-mapper v2",
+  "nodes": [
+    {
+      "id": "core-extension",
+      "type": "System",
+      "label": "Core Extension",
+      "responsibility": "模组入口，实现 ILittleMaid 接口，通过 @LittleMaidExtension 注解注册为车万女仆附属；在构造函数中注册 Forge 事件总线、Forge 配置、菜单类型；提供 registerAITool 注册 AI 工具、RegisterCommandsEvent 注册命令、FMLClientSetupEvent 注册客户端 GUI",
+      "implementation_status": "implemented",
+      "code_path": "src/main/java/com/github/tartaricacid/tlm_sincerely/SincerelyExtension.java",
+      "evidence_path": null,
+      "evidence_gap": null,
+      "tech_stack": ["java", "forge", "minecraft-1.20.1", "touhou-little-maid"],
+      "related_reqs": null,
+      "complexity": "medium",
+      "hotspot": false
+    },
+    {
+      "id": "configuration",
+      "type": "System",
+      "label": "Configuration",
+      "responsibility": "Forge 配置系统，使用 ForgeConfigSpec 定义所有可调参数。GeneralConfig 作为编排入口，包含 ChatBarConfig（聊天模式、全局可见、前缀要求、自动范围、前缀模式）和 PriorityConfig（启用开关、冷却时间）两个子配置。通过 Configured 模组提供 GUI 编辑界面",
+      "implementation_status": "implemented",
+      "code_path": "src/main/java/com/github/tartaricacid/tlm_sincerely/config/",
+      "evidence_path": null,
+      "evidence_gap": null,
+      "tech_stack": ["java", "forge", "forgeconfigspec", "configured-mod"],
+      "related_reqs": null,
+      "complexity": "low",
+      "hotspot": true
+    },
+    {
+      "id": "chat-system",
+      "type": "System",
+      "label": "Chat System",
+      "responsibility": "聊天栏对话系统。ChatBarHandler 监听 ServerChatEvent，解析 @前缀 指定女仆或自动匹配最近女仆，调用主模组 MaidAIChatManager.chat() 发送消息。MaidFinder 提供女仆查找工具（按名称、UUID、最近距离），返回 FindResult 记录（含多重匹配检测）",
+      "implementation_status": "implemented",
+      "code_path": "src/main/java/com/github/tartaricacid/tlm_sincerely/chatbar/",
+      "evidence_path": null,
+      "evidence_gap": null,
+      "tech_stack": ["java", "forge", "touhou-little-maid"],
+      "related_reqs": null,
+      "complexity": "medium",
+      "hotspot": false
+    },
+    {
+      "id": "command-system",
+      "type": "System",
+      "label": "Command System",
+      "responsibility": "Brigadier 命令系统，注册 /tlmchat 命令。子命令包括：mode on/off（聊天模式开关）、global（全局可见切换）、to <name> <message>（指定女仆对话）、uuid <uuid> <message>（UUID 精确匹配）、list（附近女仆列表）、<message>（最近女仆对话）。提供女仆名称和 UUID 的自动补全",
+      "implementation_status": "implemented",
+      "code_path": "src/main/java/com/github/tartaricacid/tlm_sincerely/command/",
+      "evidence_path": null,
+      "evidence_gap": null,
+      "tech_stack": ["java", "forge", "brigadier"],
+      "related_reqs": null,
+      "complexity": "medium",
+      "hotspot": false
+    },
+    {
+      "id": "priority-management",
+      "type": "System",
+      "label": "Priority Management",
+      "responsibility": "任务优先级管理系统。TaskPriorityPreset 为数据模型（优先级分值 + 任务排序列表）。TaskPriorityManager 提供预设 CRUD 和 JSON 文件持久化（config/tlm_sincerely/task_priority_presets.json）。TaskAutoSwitchHandler 在服务端 tick 时根据活跃预设自动切换女仆任务（支持冷却时间、仅在家模式检测）",
+      "implementation_status": "implemented",
+      "code_path": "src/main/java/com/github/tartaricacid/tlm_sincerely/priority/",
+      "evidence_path": null,
+      "evidence_gap": null,
+      "tech_stack": ["java", "forge", "gson"],
+      "related_reqs": null,
+      "complexity": "high",
+      "hotspot": false
+    },
+    {
+      "id": "ai-tool",
+      "type": "System",
+      "label": "AI Tool",
+      "responsibility": "LLM 函数调用工具。TaskPriorityTool 实现 ITool 接口，让女仆 AI 可以通过 function calling 查询任务优先级、设置优先级（1-10）、切换预设。通过 @LittleMaidExtension + registerAITool 注册到主模组 AI 系统",
+      "implementation_status": "implemented",
+      "code_path": "src/main/java/com/github/tartaricacid/tlm_sincerely/ai/tool/",
+      "evidence_path": null,
+      "evidence_gap": null,
+      "tech_stack": ["java", "touhou-little-maid-ai"],
+      "related_reqs": null,
+      "complexity": "medium",
+      "hotspot": false
+    },
+    {
+      "id": "client-gui",
+      "type": "System",
+      "label": "Client GUI",
+      "responsibility": "客户端 GUI 系统。ConfigScreen 使用 Cloth Config API 构建配置 GUI（聊天栏/优先级两个分类）。PriorityContainer 为优先级编辑容器（继承 AbstractMaidContainer），PriorityContainerGui 为优先级编辑界面（任务排序、预设管理、分页显示），PriorityRegistry 负责 MenuType 的 Forge DeferredRegister 注册。FlatColorButton 为自定义扁平按钮组件",
+      "implementation_status": "implemented",
+      "code_path": "src/main/java/com/github/tartaricacid/tlm_sincerely/client/",
+      "evidence_path": null,
+      "evidence_gap": null,
+      "tech_stack": ["java", "forge", "cloth-config", "minecraft-gui"],
+      "related_reqs": null,
+      "complexity": "medium",
+      "hotspot": false
+    },
+    {
+      "id": "mixin",
+      "type": "System",
+      "label": "Mixin",
+      "responsibility": "Mixin 注入系统，用于跨模组功能集成。EntityMaidGuiMixin 注入 ToggleTabMessage 处理，拦截 Tab 索引 5 打开优先级界面。MaidChatBroadcastMixin 注入 ChatBubbleManager，根据 GLOBAL_VISIBLE 配置重定向女仆回复为广播或私聊。MaidTabsMixin 注入 MaidTabs.getTabs()，在女仆 GUI 标签栏添加优先级标签按钮",
+      "implementation_status": "implemented",
+      "code_path": "src/main/java/com/github/tartaricacid/tlm_sincerely/mixin/",
+      "evidence_path": null,
+      "evidence_gap": null,
+      "tech_stack": ["java", "spongepowered-mixin", "touhou-little-maid"],
+      "related_reqs": null,
+      "complexity": "medium",
+      "hotspot": false
+    }
+  ],
+  "edges": [
+    {
+      "source": "core-extension",
+      "target": "configuration",
+      "type": "depends_on",
+      "description": "构造时调用 GeneralConfig.init() 注册配置"
+    },
+    {
+      "source": "core-extension",
+      "target": "command-system",
+      "type": "depends_on",
+      "description": "RegisterCommandsEvent 中调用 ChatCommand.register()"
+    },
+    {
+      "source": "core-extension",
+      "target": "ai-tool",
+      "type": "depends_on",
+      "description": "registerAITool 中注册 TaskPriorityTool"
+    },
+    {
+      "source": "core-extension",
+      "target": "client-gui",
+      "type": "depends_on",
+      "description": "FMLClientSetupEvent 注册 PriorityContainerGui，构造时注册 ConfigScreen"
+    },
+    {
+      "source": "core-extension",
+      "target": "mixin",
+      "type": "depends_on",
+      "description": "构造时调用 PriorityRegistry.MENU_TYPES.register() 完成菜单类型注册"
+    },
+    {
+      "source": "chat-system",
+      "target": "configuration",
+      "type": "depends_on",
+      "description": "读取 ChatBarConfig 的 CHAT_MODE/REQUIRE_PREFIX 等配置项"
+    },
+    {
+      "source": "command-system",
+      "target": "chat-system",
+      "type": "depends_on",
+      "description": "调用 MaidFinder 查找女仆"
+    },
+    {
+      "source": "command-system",
+      "target": "configuration",
+      "type": "depends_on",
+      "description": "读写 ChatBarConfig 的 CHAT_MODE/GLOBAL_VISIBLE"
+    },
+    {
+      "source": "priority-management",
+      "target": "configuration",
+      "type": "depends_on",
+      "description": "TaskAutoSwitchHandler 读取 PriorityConfig.ENABLED/COOLDOWN"
+    },
+    {
+      "source": "ai-tool",
+      "target": "priority-management",
+      "type": "depends_on",
+      "description": "TaskPriorityTool 调用 TaskPriorityManager 进行预设管理"
+    },
+    {
+      "source": "client-gui",
+      "target": "configuration",
+      "type": "depends_on",
+      "description": "ConfigScreen 绑定 ChatBarConfig/PriorityConfig 配置项"
+    },
+    {
+      "source": "client-gui",
+      "target": "priority-management",
+      "type": "depends_on",
+      "description": "PriorityContainerGui 调用 TaskPriorityManager 管理预设"
+    },
+    {
+      "source": "client-gui",
+      "target": "core-extension",
+      "type": "depends_on",
+      "description": "PriorityRegistry 引用 SincerelyExtension.MOD_ID（静态常量引用，良性循环依赖）"
+    },
+    {
+      "source": "mixin",
+      "target": "configuration",
+      "type": "depends_on",
+      "description": "MaidChatBroadcastMixin 读取 ChatBarConfig.GLOBAL_VISIBLE"
+    },
+    {
+      "source": "mixin",
+      "target": "client-gui",
+      "type": "depends_on",
+      "description": "EntityMaidGuiMixin 打开 PriorityContainer.PriorityMenuProvider"
+    }
+  ],
+  "metadata": {
+    "total_files": 19,
+    "total_lines": 1733,
+    "languages": ["java"],
+    "git_commits_analyzed": 5,
+    "analysis_days": 90
+  }
+}
