@@ -25,5 +25,19 @@
     "config.tlm_sincerely.chatbar.auto_chat_range": "自动对话范围",
     "config.tlm_sincerely.chatbar.auto_chat_range.tooltip": "无前缀时自动寻找范围内最近的女仆对话（0 = 禁用）",
     "config.tlm_sincerely.chatbar.prefix_pattern": "前缀字符",
-    "config.tlm_sincerely.chatbar.prefix_pattern.tooltip": "指定女仆的前缀符号"
+    "config.tlm_sincerely.chatbar.prefix_pattern.tooltip": "指定女仆的前缀符号",
+    "config.tlm_sincerely.priority": "任务优先级",
+    "config.tlm_sincerely.priority.enabled": "启用自动切换",
+    "config.tlm_sincerely.priority.enabled.tooltip": "当条件满足时，自动按优先级切换任务",
+    "config.tlm_sincerely.priority.cooldown": "切换冷却时间",
+    "config.tlm_sincerely.priority.cooldown.tooltip": "自动切换间的冷却时间（单位：tick，20 tick = 1 秒）",
+    "gui.tlm_sincerely.priority.title": "任务优先级配置",
+    "gui.tlm_sincerely.priority.unsorted": "未排序任务",
+    "gui.tlm_sincerely.priority.sorted": "已排序任务",
+    "gui.tlm_sincerely.priority.save": "保存",
+    "gui.tlm_sincerely.priority.new": "新建",
+    "gui.tlm_sincerely.priority.delete": "删除",
+    "gui.tlm_sincerely.priority.apply": "应用",
+    "gui.touhou_little_maid.button.task_priority": "优先级",
+    "gui.touhou_little_maid.button.task_priority.desc": "配置女仆任务优先级排序"
 }

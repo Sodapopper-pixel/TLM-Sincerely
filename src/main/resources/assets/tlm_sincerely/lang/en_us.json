@@ -26,5 +26,19 @@
     "config.tlm_sincerely.chatbar.auto_chat_range": "Auto Chat Range",
     "config.tlm_sincerely.chatbar.auto_chat_range.tooltip": "Auto-select the nearest maid within this range (0 = disabled)",
     "config.tlm_sincerely.chatbar.prefix_pattern": "Prefix Pattern",
-    "config.tlm_sincerely.chatbar.prefix_pattern.tooltip": "Prefix character to specify a maid"
+    "config.tlm_sincerely.chatbar.prefix_pattern.tooltip": "Prefix character to specify a maid",
+    "config.tlm_sincerely.priority": "Task Priority",
+    "config.tlm_sincerely.priority.enabled": "Enable Auto Switch",
+    "config.tlm_sincerely.priority.enabled.tooltip": "Automatically switch tasks based on priority when conditions are met",
+    "config.tlm_sincerely.priority.cooldown": "Switch Cooldown",
+    "config.tlm_sincerely.priority.cooldown.tooltip": "Cooldown in ticks between auto-switches (20 ticks = 1 second)",
+    "gui.tlm_sincerely.priority.title": "Task Priority Configuration",
+    "gui.tlm_sincerely.priority.unsorted": "Unsorted Tasks",
+    "gui.tlm_sincerely.priority.sorted": "Sorted Tasks",
+    "gui.tlm_sincerely.priority.save": "Save",
+    "gui.tlm_sincerely.priority.new": "New",
+    "gui.tlm_sincerely.priority.delete": "Del",
+    "gui.tlm_sincerely.priority.apply": "Apply",
+    "gui.touhou_little_maid.button.task_priority": "Priority",
+    "gui.touhou_little_maid.button.task_priority.desc": "Configure task priority ordering"
 }

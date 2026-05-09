@@ -5,9 +5,11 @@
     "compatibilityLevel": "JAVA_8",
     "refmap": "tlm_sincerely.refmap.json",
     "mixins": [
-        "MaidChatBroadcastMixin"
+        "EntityMaidGuiMixin"
     ],
-    "client": [],
+    "client": [
+        "MaidTabsMixin"
+    ],
     "injectors": {
         "defaultRequire": 1
     }

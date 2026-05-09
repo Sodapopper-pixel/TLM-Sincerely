@@ -1,6 +1,7 @@
 package com.github.tartaricacid.tlm_sincerely.client.gui;
 
 import com.github.tartaricacid.tlm_sincerely.config.subconfig.ChatBarConfig;
+import com.github.tartaricacid.tlm_sincerely.config.subconfig.PriorityConfig;
 import me.shedaniel.clothconfig2.api.ConfigBuilder;
 import me.shedaniel.clothconfig2.api.ConfigCategory;
 import me.shedaniel.clothconfig2.api.ConfigEntryBuilder;
@@ -17,6 +18,7 @@ public final class ConfigScreen {
         builder.setGlobalizedExpanded(false);
 
         ConfigEntryBuilder entryBuilder = builder.entryBuilder();
+
         ConfigCategory chatbar = builder.getOrCreateCategory(
                 Component.translatable("config.tlm_sincerely.chatbar"));
 
@@ -60,6 +62,27 @@ public final class ConfigScreen {
                 .setDefaultValue("@")
                 .setTooltip(Component.translatable("config.tlm_sincerely.chatbar.prefix_pattern.tooltip"))
                 .setSaveConsumer(ChatBarConfig.PREFIX_PATTERN::set)
+                .build());
+
+        ConfigCategory priority = builder.getOrCreateCategory(
+                Component.translatable("config.tlm_sincerely.priority"));
+
+        priority.addEntry(entryBuilder.startBooleanToggle(
+                        Component.translatable("config.tlm_sincerely.priority.enabled"),
+                        PriorityConfig.ENABLED.get())
+                .setDefaultValue(true)
+                .setTooltip(Component.translatable("config.tlm_sincerely.priority.enabled.tooltip"))
+                .setSaveConsumer(PriorityConfig.ENABLED::set)
+                .build());
+
+        priority.addEntry(entryBuilder.startIntField(
+                        Component.translatable("config.tlm_sincerely.priority.cooldown"),
+                        PriorityConfig.COOLDOWN.get())
+                .setDefaultValue(100)
+                .setMin(20)
+                .setMax(6000)
+                .setTooltip(Component.translatable("config.tlm_sincerely.priority.cooldown.tooltip"))
+                .setSaveConsumer(PriorityConfig.COOLDOWN::set)
                 .build());
 
         return builder;

@@ -7,3 +7,4 @@ libs/
 *.jar
 !gradle/wrapper/*.jar
 .kilo/node_modules/
+.nexus-map/raw
