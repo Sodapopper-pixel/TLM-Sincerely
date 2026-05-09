@@ -5,9 +5,9 @@ plugins {
     id 'org.parchmentmc.librarian.forgegradle' version '1.+'
 }
 
-group = mod_group_id
-version = mod_version
-archivesBaseName = "${mod_id}-${minecraft_version}-forge"
+group = project.findProperty('mod_group_id') ?: 'com.github.tartaricacid'
+version = project.findProperty('mod_version') ?: '0.1.0'
+archivesBaseName = "${project.findProperty('mod_id') ?: 'tlm_sincerely'}-${minecraft_version}-forge"
 
 java {
     toolchain.languageVersion = JavaLanguageVersion.of(17)
@@ -74,6 +74,7 @@ repositories {
         url = "https://maven.blamejared.com/"
         content {
             includeGroup "mezz.jei"
+            includeGroup "vazkii.patchouli"
         }
     }
     maven {
@@ -101,6 +102,7 @@ dependencies {
     runtimeOnly fg.deobf("net.createmod.ponder:Ponder-Forge-1.20.1:1.0.80")
     runtimeOnly fg.deobf("maven.modrinth:create:1.20.1-6.0.6")
     runtimeOnly fg.deobf("maven.modrinth:kaleidoscope-cookery:1.2.0-forge+mc1.20.1")
+    runtimeOnly fg.deobf("vazkii.patchouli:Patchouli:1.20.1-84-FORGE")
     
     // Local libs (flatDir)
     runtimeOnly fg.deobf("libs:catalogue-forge:1.20.1-1.8.0")
@@ -115,7 +117,7 @@ dependencies {
     runtimeOnly fg.deobf("libs:maidsoulkitchen-forge:1.20.1-0.3.0.9")
     
     // Cloth Config API
-    runtimeOnly fg.deobf("libs:cloth-config-forge:11.1.136")
+    implementation fg.deobf("libs:cloth-config-forge:11.1.136")
 }
 
 // Copy local mods with mixin to run/mods directory (avoids refMap issues in dev environment)

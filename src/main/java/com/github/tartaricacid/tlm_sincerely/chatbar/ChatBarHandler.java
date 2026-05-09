@@ -1,0 +1,92 @@
+package com.github.tartaricacid.tlm_sincerely.chatbar;
+
+import com.github.tartaricacid.tlm_sincerely.config.subconfig.ChatBarConfig;
+import com.github.tartaricacid.touhoulittlemaid.ai.manager.entity.ChatClientInfo;
+import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.event.ServerChatEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+@Mod.EventBusSubscriber
+public final class ChatBarHandler {
+    private static final String DEFAULT_LANGUAGE = "en_us";
+    private static final Pattern AT_PATTERN = Pattern.compile("^@(.+?)\\s+(.+)$");
+
+    @SubscribeEvent
+    public static void onServerChat(ServerChatEvent event) {
+        if (!ChatBarConfig.CHAT_MODE.get()) {
+            return;
+        }
+
+        ServerPlayer player = event.getPlayer();
+        String rawMessage = event.getRawText();
+
+        String prefix = ChatBarConfig.PREFIX_PATTERN.get();
+        EntityMaid targetMaid = null;
+        String chatMessage = rawMessage;
+
+        if (ChatBarConfig.REQUIRE_PREFIX.get()) {
+            Pattern pattern = Pattern.compile("^" + Pattern.quote(prefix) + "(.+?)\\s+(.+)$");
+            Matcher matcher = pattern.matcher(rawMessage);
+            if (matcher.find()) {
+                String name = matcher.group(1);
+                chatMessage = matcher.group(2);
+                MaidFinder.FindResult result = MaidFinder.findByName(player, name);
+                if (result.hasMaid()) {
+                    targetMaid = result.maid();
+                    if (result.hasMultipleMatches()) {
+                        String uuidShort = targetMaid.getUUID().toString().substring(0, 8);
+                        player.sendSystemMessage(Component.translatable(
+                                "chat.tlm_sincerely.multiple_same_name", name, uuidShort
+                        ).withStyle(ChatFormatting.YELLOW));
+                    }
+                } else {
+                    player.sendSystemMessage(Component.translatable("chat.tlm_sincerely.maid_not_found")
+                            .withStyle(ChatFormatting.RED));
+                    event.setCanceled(true);
+                    return;
+                }
+            }
+        } else {
+            double range = ChatBarConfig.AUTO_CHAT_RANGE.get();
+            if (range > 0) {
+                List<EntityMaid> maids = MaidFinder.getOwnedMaids(player, range);
+                if (!maids.isEmpty()) {
+                    targetMaid = MaidFinder.findNearest(player, maids);
+                }
+            }
+        }
+
+        if (targetMaid != null) {
+            sendChatToMaid(targetMaid, player, chatMessage);
+
+            if (!ChatBarConfig.GLOBAL_VISIBLE.get()) {
+                event.setCanceled(true);
+                String format = "<%s -> %s> %s".formatted(
+                        player.getScoreboardName(),
+                        targetMaid.getName().getString(),
+                        chatMessage
+                );
+                player.sendSystemMessage(Component.literal(format).withStyle(ChatFormatting.GRAY));
+            }
+        }
+    }
+
+    private static void sendChatToMaid(EntityMaid maid, ServerPlayer player, String message) {
+        String language = maid.getAiChatManager().getTTSLanguage();
+        if (language == null || language.isEmpty()) {
+            language = DEFAULT_LANGUAGE;
+        }
+        String name = maid.getName().getString();
+        List<String> description = List.of();
+        ChatClientInfo clientInfo = new ChatClientInfo(language, name, description);
+        maid.getAiChatManager().chat(message, clientInfo, player);
+    }
+}

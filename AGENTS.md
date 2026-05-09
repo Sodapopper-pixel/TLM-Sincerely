@@ -1,10 +1,10 @@
 # AGENTS.md
 
-## 语言政策
+## 语言规范
 
 - 默认使用简体中文回答
 - 代码、命令、报错、API 名称保持原文，不要强行翻译
-- 提问澄清时也使用中文
+- 提问澄清和git提交时也使用中文
 
 ---
 
@@ -16,6 +16,16 @@
 - **Java**: 17
 - **主模组依赖**: touhou_little_maid ≥ 1.5.1
 - **开发者**: terk
+
+---
+
+## 相关文档
+
+- AGENTS.md ：本文档
+- DEV_PLAN.md ：开发计划
+- DEVELOPMENT.md ：**重要⚠️**，本项目开发注意事项
+- wiki-reference\ ：车万附属开发指南
+- .kilo\plans ：会话临时计划文件
 
 ---
 
@@ -64,9 +74,6 @@ build/libs/tlm_sincerely-1.20.1-forge-1.0.0.jar
 # 启动测试客户端（首次较慢，需下载资源）
 $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
 .\gradlew.bat runClient --no-daemon
-
-# 启动测试服务器
-.\gradlew.bat runServer --no-daemon
 ```
 
 ---
@@ -81,18 +88,21 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
 | `/tlmchat uuid <UUID> 你好吗` | 与指定 UUID 的女仆对话（精确匹配） |
 | `/tlmchat list` | 显示附近女仆列表（名字、UUID、距离） |
 
+**聊天栏对话（通过配置激活）**：
+| 配置项 | 说明 |
+|--------|------|
+| `ChatModeEnabled` | 开启后监听聊天事件，直接对话女仆 |
+| `RequirePrefix` | 是否需要前缀（如 `@名字`） |
+| `PrefixPattern` | 前缀字符（默认 `@`） |
+| `AutoChatRange` | 无前缀时自动对话范围 |
+| `GlobalChatVisible` | 是否全局可见 |
+
 **同名女仆提醒**：
 - 当匹配到多个同名女仆时，会自动选择最近的
 - 系统会发送黄色提示消息，包含 UUID（8位截断）
 - 可使用 `/tlmchat list` 查看详情，或 `/tlmchat uuid` 精确指定
 
-**测试步骤**：
-1. 启动 runClient
-2. 创建/进入测试世界
-3. 放置女仆并驯服
-4. 配置 AI 聊天（需要有效的 LLM API）
-5. 在聊天栏输入 `/tlmchat` 命令测试
-
+**配置文件**：`config/tlm_sincerely.toml`（使用 Configured 模组 GUI 编辑）
 ---
 
 ## 开发规范
@@ -170,12 +180,3 @@ dependencies {
 ```
 
 ---
-
-## 常见问题
-
-| 问题 | 解决方案 |
-|------|----------|
-| Gradle 报错 "Unsupported class file major version 69" | 设置 `JAVA_HOME` 为 JDK 17 |
-| mods.toml 乱码 | 直接使用英文值，避免 Gradle 变量替换 |
-| runClient 启动慢 | 正常现象，首次需下载资源；后续会更快 |
-| 找不到女仆 | 确保女仆已驯服且在 64 格范围内 |
