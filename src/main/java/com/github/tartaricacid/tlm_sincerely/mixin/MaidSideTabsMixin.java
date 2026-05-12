@@ -1,6 +1,7 @@
 package com.github.tartaricacid.tlm_sincerely.mixin;
 
 import com.github.tartaricacid.tlm_sincerely.client.gui.TaskPriorityScreen;
+import com.github.tartaricacid.tlm_sincerely.client.gui.widget.PrioritySideTabButton;
 import com.github.tartaricacid.touhoulittlemaid.client.gui.entity.maid.AbstractMaidContainerGui;
 import com.github.tartaricacid.touhoulittlemaid.client.gui.entity.maid.MaidSideTabs;
 import com.github.tartaricacid.touhoulittlemaid.client.gui.widget.button.MaidSideTabButton;
@@ -27,7 +28,7 @@ public class MaidSideTabsMixin {
         int spacing = 25;
         int index = 2;
 
-        MaidSideTabButton priority = new MaidSideTabButton(
+        MaidSideTabButton priority = new PrioritySideTabButton(
                 rightPos, topPos + index * spacing, index * spacing,
                 (b) -> {
                     EntityMaid maid = screen.getMaid();
@@ -36,8 +37,8 @@ public class MaidSideTabsMixin {
                     }
                 },
                 List.of(
-                        Component.translatable("gui.touhou_little_maid.button.task_priority"),
-                        Component.translatable("gui.touhou_little_maid.button.task_priority.desc")
+                        Component.translatable("gui.tlm_sincerely.button.task_priority"),
+                        Component.translatable("gui.tlm_sincerely.button.task_priority.desc")
                 )
         );
 

@@ -3,7 +3,6 @@ package com.github.tartaricacid.tlm_sincerely.priority;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +48,13 @@ public class TaskPriorityPreset {
         }
     }
 
+    void setPriorityNoReorder(ResourceLocation taskId, int priority) {
+        if (priority < 1 || priority > 10) {
+            throw new IllegalArgumentException("Priority must be between 1 and 10");
+        }
+        priorities.put(taskId, priority);
+    }
+
     public void removeTask(ResourceLocation taskId) {
         priorities.remove(taskId);
         order.remove(taskId);
@@ -59,11 +65,7 @@ public class TaskPriorityPreset {
     }
 
     public List<ResourceLocation> getSortedTasks() {
-        List<ResourceLocation> sorted = new ArrayList<>(order);
-        sorted.sort(Comparator
-                .comparingInt((ResourceLocation id) -> priorities.getOrDefault(id, 10))
-                .thenComparingInt(order::indexOf));
-        return sorted;
+        return new ArrayList<>(order);
     }
 
     public void moveTaskUp(ResourceLocation taskId) {

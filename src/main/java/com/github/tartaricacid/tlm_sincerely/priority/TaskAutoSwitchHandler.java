@@ -12,6 +12,8 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,24 +33,26 @@ public final class TaskAutoSwitchHandler {
             return;
         }
 
-        TaskPriorityManager.loadPresets();
+        long currentTick = event.getServer().getTickCount();
+        if (currentTick % CHECK_INTERVAL != 0) {
+            return;
+        }
+
         TaskPriorityPreset preset = TaskPriorityManager.getActivePreset();
         if (preset == null) {
             return;
         }
 
-        List<ResourceLocation> sortedTasks = preset.getSortedTasks();
+        List<ResourceLocation> sortedTasks = new ArrayList<>(preset.getSortedTasks());
         if (sortedTasks.isEmpty()) {
             return;
         }
+        sortedTasks.sort(Comparator.comparingInt((ResourceLocation id) ->
+                preset.getPriorities().getOrDefault(id, 10)));
 
-        long currentTick = event.getServer().getTickCount();
         int cooldownTicks = PriorityConfig.COOLDOWN.get();
 
         for (ServerLevel level : event.getServer().getAllLevels()) {
-            if (currentTick % CHECK_INTERVAL != 0) {
-                break;
-            }
 
             for (EntityMaid maid : level.getEntitiesOfClass(EntityMaid.class,
                     new AABB(level.getSharedSpawnPos()).inflate(256),

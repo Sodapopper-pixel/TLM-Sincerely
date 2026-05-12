@@ -7,13 +7,13 @@ public final class PriorityConfig {
     public static ForgeConfigSpec.IntValue COOLDOWN;
 
     public static void init(ForgeConfigSpec.Builder builder) {
-        builder.push("priority");
+        builder.push("multi_task");
 
-        builder.comment("Enable automatic task switching based on priority");
-        ENABLED = builder.define("Enabled", true);
+        builder.comment("Enable multi-task mode for maids");
+        ENABLED = builder.define("Enabled", false);
 
-        builder.comment("Cooldown in ticks between auto-switches (20 ticks = 1 second)");
-        COOLDOWN = builder.defineInRange("Cooldown", 100, 20, 6000);
+        builder.comment("Polling interval in ticks for task switching (20 ticks = 1 second)");
+        COOLDOWN = builder.defineInRange("PollInterval", 100, 20, 6000);
 
         builder.pop();
     }

@@ -1,5 +1,6 @@
 package com.github.tartaricacid.tlm_sincerely.client.gui;
 
+import com.github.tartaricacid.tlm_sincerely.config.subconfig.PriorityConfig;
 import com.github.tartaricacid.tlm_sincerely.priority.TaskPriorityManager;
 import com.github.tartaricacid.tlm_sincerely.priority.TaskPriorityPreset;
 import com.github.tartaricacid.touhoulittlemaid.api.task.IMaidTask;
@@ -22,6 +23,7 @@ import java.util.List;
 @OnlyIn(Dist.CLIENT)
 public class TaskPriorityScreen extends Screen {
     private static final ResourceLocation TASK_TEXTURE = new ResourceLocation("touhou_little_maid", "textures/gui/maid_gui_task.png");
+    private static final ResourceLocation BG_TEXTURE = new ResourceLocation("tlm_sincerely", "textures/gui/priority_gui_bg.png");
     private static final int IMAGE_WIDTH = 256;
     private static final int IMAGE_HEIGHT = 256;
     private static final int TASK_HEIGHT = 19;
@@ -59,32 +61,35 @@ public class TaskPriorityScreen extends Screen {
 
         int leftColX = guiLeft + 7;
         int rightColX = guiLeft + 133;
-        int taskStartY = guiTop + 32;
-        int presetBarY = guiTop + 4;
-        int bottomBarY = guiTop + IMAGE_HEIGHT - 24;
+        int taskStartY = guiTop + 44;
+        int row1Y = guiTop + 4;
+        int row2Y = guiTop + 20;
 
-        this.presetNameField = new EditBox(font, leftColX + 32, presetBarY, 56, 14, Component.literal("preset_name"));
+        boolean isEnabled = PriorityConfig.ENABLED.get();
+        String enableText = isEnabled ? 
+                Component.translatable("gui.tlm_sincerely.priority.enabled.on").getString() : 
+                Component.translatable("gui.tlm_sincerely.priority.enabled.off").getString();
+        String enableLabel = Component.translatable("gui.tlm_sincerely.priority.enable_label").getString();
+
+        addRenderableWidget(Button.builder(
+                        Component.literal(enableLabel + ": " + enableText),
+                        b -> toggleEnabled())
+                .pos(leftColX, row1Y).size(110, 14).build());
+
+        this.presetNameField = new EditBox(font, leftColX + 112, row1Y, 50, 14, Component.literal("preset_name"));
         presetNameField.setValue(editingPreset.getName());
         presetNameField.setMaxLength(16);
         addRenderableWidget(presetNameField);
 
-        addRenderableWidget(Button.builder(Component.translatable("gui.tlm_sincerely.priority.save"),
-                        b -> savePreset()).pos(leftColX + 90, presetBarY).size(36, 14).build());
-
         addRenderableWidget(Button.builder(Component.literal("<"), b -> switchPreset(-1))
-                .pos(leftColX, presetBarY).size(14, 14).build());
+                .pos(leftColX + 164, row1Y).size(12, 14).build());
         addRenderableWidget(Button.builder(Component.literal(">"), b -> switchPreset(1))
-                .pos(leftColX + 16, presetBarY).size(14, 14).build());
+                .pos(leftColX + 177, row1Y).size(12, 14).build());
 
         addRenderableWidget(Button.builder(Component.translatable("gui.tlm_sincerely.priority.new"),
-                        b -> newPreset()).pos(rightColX, presetBarY).size(30, 14).build());
+                        b -> newPreset()).pos(rightColX, row2Y).size(36, 14).build());
         addRenderableWidget(Button.builder(Component.translatable("gui.tlm_sincerely.priority.delete"),
-                        b -> deletePreset()).pos(rightColX + 32, presetBarY).size(30, 14).build());
-
-        addRenderableWidget(Button.builder(Component.translatable("gui.tlm_sincerely.priority.apply"),
-                        b -> applyPreset()).pos(rightColX, bottomBarY).size(55, 20).build());
-        addRenderableWidget(Button.builder(Component.translatable("gui.cancel"),
-                        b -> onClose()).pos(rightColX + 60, bottomBarY).size(55, 20).build());
+                        b -> deletePreset()).pos(rightColX + 38, row2Y).size(36, 14).build());
 
         List<IMaidTask> unsortedTasks = getUnsortedTasks();
         List<IMaidTask> sortedTasks = editingPreset.getSortedTasks().stream()
@@ -100,18 +105,19 @@ public class TaskPriorityScreen extends Screen {
             if (index >= unsortedTasks.size()) break;
             IMaidTask task = unsortedTasks.get(index);
             addRenderableWidget(new TaskEntryButton(leftColX, taskStartY + i * TASK_HEIGHT, 118, 17,
-                    task, true, () -> addToPriority(task.getUid())));
+                    task, true, null, -1, () -> addToPriority(task.getUid())));
         }
 
+        int leftPageBtnY = taskStartY + MAX_VISIBLE * TASK_HEIGHT + 2;
         if (leftPage > 0) {
             addRenderableWidget(Button.builder(Component.literal("▲"),
                             b -> { leftPage--; buildWidgets(); })
-                    .pos(leftColX + 48, taskStartY + MAX_VISIBLE * TASK_HEIGHT + 2).size(16, 12).build());
+                    .pos(leftColX + 48, leftPageBtnY).size(16, 12).build());
         }
         if (leftPage < maxPageLeft) {
             addRenderableWidget(Button.builder(Component.literal("▼"),
                             b -> { leftPage++; buildWidgets(); })
-                    .pos(leftColX + 64, taskStartY + MAX_VISIBLE * TASK_HEIGHT + 2).size(16, 12).build());
+                    .pos(leftColX + 66, leftPageBtnY).size(16, 12).build());
         }
 
         int maxPageRight = Math.max(0, (sortedTasks.size() - 1) / MAX_VISIBLE);
@@ -123,7 +129,7 @@ public class TaskPriorityScreen extends Screen {
             IMaidTask task = sortedTasks.get(index);
             int priority = editingPreset.getPriorities().getOrDefault(task.getUid(), 0);
             addRenderableWidget(new TaskEntryButton(rightColX, taskStartY + i * TASK_HEIGHT, 118, 17,
-                    task, false, () -> {
+                    task, false, this, index, () -> {
                         int current = editingPreset.getPriorities().getOrDefault(task.getUid(), 10);
                         editingPreset.setPriority(task.getUid(), current % 10 + 1);
                         TaskPriorityManager.savePresets();
@@ -131,22 +137,29 @@ public class TaskPriorityScreen extends Screen {
                     }));
         }
 
+        int rightPageBtnY = taskStartY + MAX_VISIBLE * TASK_HEIGHT + 2;
         if (rightPage > 0) {
-            addRenderableWidget(Button.builder(Component.literal("▲"),
+            addRenderableWidget(Button.builder(Component.literal("◀"),
                             b -> { rightPage--; buildWidgets(); })
-                    .pos(rightColX + 48, taskStartY + MAX_VISIBLE * TASK_HEIGHT + 2).size(16, 12).build());
+                    .pos(rightColX + 48, rightPageBtnY).size(16, 12).build());
         }
         if (rightPage < maxPageRight) {
-            addRenderableWidget(Button.builder(Component.literal("▼"),
+            addRenderableWidget(Button.builder(Component.literal("▶"),
                             b -> { rightPage++; buildWidgets(); })
-                    .pos(rightColX + 64, taskStartY + MAX_VISIBLE * TASK_HEIGHT + 2).size(16, 12).build());
+                    .pos(rightColX + 66, rightPageBtnY).size(16, 12).build());
         }
+    }
+
+    private void toggleEnabled() {
+        boolean current = PriorityConfig.ENABLED.get();
+        PriorityConfig.ENABLED.set(!current);
+        buildWidgets();
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollY) {
         int rightColX = guiLeft + 133;
-        int taskStartY = guiTop + 32;
+        int taskStartY = guiTop + 44;
         int rightColW = 118;
 
         if (mouseX >= rightColX && mouseX <= rightColX + rightColW &&
@@ -181,8 +194,26 @@ public class TaskPriorityScreen extends Screen {
         return unsorted;
     }
 
-    private void addToPriority(net.minecraft.resources.ResourceLocation taskId) {
+    private void addToPriority(ResourceLocation taskId) {
         editingPreset.setPriority(taskId, 10);
+        TaskPriorityManager.savePresets();
+        buildWidgets();
+    }
+
+    void moveTaskUp(ResourceLocation taskId) {
+        editingPreset.moveTaskUp(taskId);
+        TaskPriorityManager.savePresets();
+        buildWidgets();
+    }
+
+    void moveTaskDown(ResourceLocation taskId) {
+        editingPreset.moveTaskDown(taskId);
+        TaskPriorityManager.savePresets();
+        buildWidgets();
+    }
+
+    void removeTask(ResourceLocation taskId) {
+        editingPreset.removeTask(taskId);
         TaskPriorityManager.savePresets();
         buildWidgets();
     }
@@ -232,26 +263,18 @@ public class TaskPriorityScreen extends Screen {
         buildWidgets();
     }
 
-    private void applyPreset() {
-        TaskPriorityManager.setActivePreset(activePresetName);
-        TaskPriorityManager.savePresets();
-    }
-
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         renderBackground(graphics);
-        graphics.fill(guiLeft, guiTop, guiLeft + IMAGE_WIDTH, guiTop + IMAGE_HEIGHT, 0xC0101010);
-        graphics.fill(guiLeft + 125, guiTop, guiLeft + 126, guiTop + IMAGE_HEIGHT, 0xFF555555);
+        graphics.blit(BG_TEXTURE, guiLeft, guiTop, 0, 0, IMAGE_WIDTH, IMAGE_HEIGHT);
+        graphics.fill(guiLeft + 125, guiTop + 28, guiLeft + 126, guiTop + IMAGE_HEIGHT - 28, 0xFF555555);
 
         super.render(graphics, mouseX, mouseY, partialTicks);
 
-        String presetLabel = "[" + activePresetName + "]";
-        graphics.drawString(font, presetLabel, guiLeft + 136, guiTop + 8, 0xFFFFFF, false);
-
         graphics.drawString(font, Component.translatable("gui.tlm_sincerely.priority.unsorted"),
-                guiLeft + 7, guiTop + 20, 0xAAAAAA, false);
+                guiLeft + 7, guiTop + 32, 0xAAAAAA, false);
         graphics.drawString(font, Component.translatable("gui.tlm_sincerely.priority.sorted"),
-                guiLeft + 133, guiTop + 20, 0xAAAAAA, false);
+                guiLeft + 133, guiTop + 32, 0xAAAAAA, false);
     }
 
     @Override
@@ -263,17 +286,55 @@ public class TaskPriorityScreen extends Screen {
         private final IMaidTask task;
         private final boolean isLeftColumn;
         private final Runnable onClickAction;
+        private final TaskPriorityScreen parentScreen;
+        private final int sortedIndex;
+        private Button moveUpBtn;
+        private Button moveDownBtn;
 
-        TaskEntryButton(int x, int y, int width, int height, IMaidTask task, boolean isLeftColumn, Runnable onClickAction) {
+        TaskEntryButton(int x, int y, int width, int height, IMaidTask task, boolean isLeftColumn,
+                       TaskPriorityScreen parentScreen, int sortedIndex, Runnable onClickAction) {
             super(x, y, width, height, Component.empty(), b -> {}, DEFAULT_NARRATION);
             this.task = task;
             this.isLeftColumn = isLeftColumn;
+            this.parentScreen = parentScreen;
+            this.sortedIndex = sortedIndex;
             this.onClickAction = onClickAction;
         }
 
         @Override
         public void onPress() {
             onClickAction.run();
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (button == 0) {
+                int btnY = this.getY() + 2;
+                if (sortedIndex > 0) {
+                    int upBtnX = this.getX() + 84;
+                    if (mouseX >= upBtnX && mouseX <= upBtnX + 14 &&
+                        mouseY >= btnY && mouseY <= btnY + 12) {
+                        parentScreen.moveTaskUp(task.getUid());
+                        return true;
+                    }
+                }
+                if (parentScreen != null && sortedIndex < parentScreen.editingPreset.getSortedTasks().size() - 1) {
+                    int downBtnX = this.getX() + 100;
+                    if (mouseX >= downBtnX && mouseX <= downBtnX + 14 &&
+                        mouseY >= btnY && mouseY <= btnY + 12) {
+                        parentScreen.moveTaskDown(task.getUid());
+                        return true;
+                    }
+                }
+            }
+            if (button == 1 && !isLeftColumn && parentScreen != null) {
+                if (mouseX >= this.getX() && mouseX <= this.getX() + this.width &&
+                    mouseY >= this.getY() && mouseY <= this.getY() + this.height) {
+                    parentScreen.removeTask(task.getUid());
+                    return true;
+                }
+            }
+            return super.mouseClicked(mouseX, mouseY, button);
         }
 
         @Override
@@ -287,16 +348,34 @@ public class TaskPriorityScreen extends Screen {
 
             if (isLeftColumn) {
                 graphics.renderItem(task.getIcon(), this.getX() + 2, this.getY() + 1);
-                graphics.drawString(Minecraft.getInstance().font, "+ ", this.getX() + 22, this.getY() + 5, 0x22AA22, false);
-                graphics.drawString(Minecraft.getInstance().font, task.getName(), this.getX() + 34, this.getY() + 5, 0x333333, false);
+                graphics.drawString(Minecraft.getInstance().font, "+", this.getX() + 20, this.getY() + 5, 0x22AA22, false);
+                graphics.drawString(Minecraft.getInstance().font, task.getName(), this.getX() + 30, this.getY() + 5, 0x333333, false);
             } else {
-                int priority = TaskPriorityManager.getActivePreset() != null
-                        ? TaskPriorityManager.getActivePreset().getPriorities().getOrDefault(task.getUid(), 0)
+                int priority = parentScreen != null && parentScreen.editingPreset != null
+                        ? parentScreen.editingPreset.getPriorities().getOrDefault(task.getUid(), 0)
                         : 0;
                 graphics.renderItem(task.getIcon(), this.getX() + 2, this.getY() + 1);
                 String prioText = priority > 0 ? String.valueOf(priority) : "-";
-                graphics.drawString(Minecraft.getInstance().font, prioText, this.getX() + 22, this.getY() + 5, 0xFF6600, false);
-                graphics.drawString(Minecraft.getInstance().font, task.getName(), this.getX() + 34, this.getY() + 5, 0x333333, false);
+                graphics.drawString(Minecraft.getInstance().font, prioText, this.getX() + 20, this.getY() + 5, 0xFF6600, false);
+                graphics.drawString(Minecraft.getInstance().font, task.getName(), this.getX() + 30, this.getY() + 5, 0x333333, false);
+
+                int btnY = this.getY() + 2;
+                if (sortedIndex > 0) {
+                    moveUpBtn = Button.builder(Component.literal("▲"),
+                            b -> parentScreen.moveTaskUp(task.getUid()))
+                            .pos(this.getX() + 84, btnY).size(14, 12).build();
+                    moveUpBtn.render(graphics, mouseX, mouseY, partialTicks);
+                } else {
+                    moveUpBtn = null;
+                }
+                if (parentScreen != null && sortedIndex < parentScreen.editingPreset.getSortedTasks().size() - 1) {
+                    moveDownBtn = Button.builder(Component.literal("▼"),
+                            b -> parentScreen.moveTaskDown(task.getUid()))
+                            .pos(this.getX() + 100, btnY).size(14, 12).build();
+                    moveDownBtn.render(graphics, mouseX, mouseY, partialTicks);
+                } else {
+                    moveDownBtn = null;
+                }
             }
         }
     }

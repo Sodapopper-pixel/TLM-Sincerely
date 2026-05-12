@@ -213,20 +213,20 @@ public final class TaskPriorityManager {
         String name = obj.get("name").getAsString();
         TaskPriorityPreset preset = new TaskPriorityPreset(name);
 
+        if (obj.has("order")) {
+            JsonArray arr = obj.getAsJsonArray("order");
+            for (int i = 0; i < arr.size(); i++) {
+                preset.getOrder().add(new ResourceLocation(arr.get(i).getAsString()));
+            }
+        }
+
         if (obj.has("priorities")) {
             JsonArray arr = obj.getAsJsonArray("priorities");
             for (int i = 0; i < arr.size(); i++) {
                 JsonObject item = arr.get(i).getAsJsonObject();
                 ResourceLocation taskId = new ResourceLocation(item.get("task").getAsString());
                 int priority = item.get("priority").getAsInt();
-                preset.setPriority(taskId, priority);
-            }
-        }
-
-        if (obj.has("order")) {
-            JsonArray arr = obj.getAsJsonArray("order");
-            for (int i = 0; i < arr.size(); i++) {
-                preset.getOrder().add(new ResourceLocation(arr.get(i).getAsString()));
+                preset.setPriorityNoReorder(taskId, priority);
             }
         }
 

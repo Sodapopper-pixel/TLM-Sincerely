@@ -64,24 +64,24 @@ public final class ConfigScreen {
                 .setSaveConsumer(ChatBarConfig.PREFIX_PATTERN::set)
                 .build());
 
-        ConfigCategory priority = builder.getOrCreateCategory(
-                Component.translatable("config.tlm_sincerely.priority"));
+        ConfigCategory multiTask = builder.getOrCreateCategory(
+                Component.translatable("config.tlm_sincerely.multi_task"));
 
-        priority.addEntry(entryBuilder.startBooleanToggle(
-                        Component.translatable("config.tlm_sincerely.priority.enabled"),
+        multiTask.addEntry(entryBuilder.startBooleanToggle(
+                        Component.translatable("config.tlm_sincerely.multi_task.enabled"),
                         PriorityConfig.ENABLED.get())
                 .setDefaultValue(true)
-                .setTooltip(Component.translatable("config.tlm_sincerely.priority.enabled.tooltip"))
+                .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.enabled.tooltip"))
                 .setSaveConsumer(PriorityConfig.ENABLED::set)
                 .build());
 
-        priority.addEntry(entryBuilder.startIntField(
-                        Component.translatable("config.tlm_sincerely.priority.cooldown"),
+        multiTask.addEntry(entryBuilder.startIntField(
+                        Component.translatable("config.tlm_sincerely.multi_task.poll_interval"),
                         PriorityConfig.COOLDOWN.get())
                 .setDefaultValue(100)
                 .setMin(20)
                 .setMax(6000)
-                .setTooltip(Component.translatable("config.tlm_sincerely.priority.cooldown.tooltip"))
+                .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.poll_interval.tooltip"))
                 .setSaveConsumer(PriorityConfig.COOLDOWN::set)
                 .build());
 
