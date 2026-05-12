@@ -182,7 +182,62 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
 
 ### 三、简易记忆系统
 
-- 待规划
+为女仆提供持久化的键值对记忆存储，让女仆能"记住"玩家的偏好、历史事件和个人信息。
+
+**架构**：三层接口 + JSON 持久化
+- Context 层：记忆索引自动注入 AI 上下文（核心记忆全文 + 归档记忆预览）
+- Tool 层：AI 可自主调用 `tlm_memory` 读写遗忘记忆
+- 命令层：玩家通过 `/tlmmemory` 管理记忆
+- 持久化：`config/tlm_sincerely/maid_memories/<uuid>.json`
+
+#### 1. AI 上下文注入
+- ✓ 注册 `tlm_sincerely_memory` 分类（promptContext=true）
+- ✓ 核心记忆（≤ 10 条）全文注入，归档记忆仅注入 key + 截断预览
+- ✓ 关闭记忆系统时不注入
+
+#### 2. AI Tool（`tlm_memory`）
+- ✓ `remember(key, value, importance)` — 写入记忆（重要性 core/archive）
+- ✓ `recall(key)` — 按 key 获取完整记忆值
+- ✓ `forget(key)` — 删除指定记忆
+- ✓ 自动枚举已有 key 供 Tab 补全
+- ✓ 记忆满时返回容量提示
+
+#### 3. Skill 引导
+- ✓ `memory-guidance` Skill（数据包）— 引导 AI 何时应记录/遗忘记忆
+- ✓ AI 在对话中即时判断重要信息并自主写入
+
+#### 4. 命令系统
+- ✓ `/tlmmemory set <名字> <key> <value>` — 设置归档记忆
+- ✓ `/tlmmemory set-core <名字> <key> <value>` — 设置核心记忆
+- ✓ `/tlmmemory get <名字> <key>` — 查看记忆详情
+- ✓ `/tlmmemory list <名字>` — 列出全部记忆
+- ✓ `/tlmmemory forget <名字> <key>` — 删除记忆
+- ✓ `/tlmmemory export <名字> [json|text|context]` — 导出记忆
+- ✓ `/tlmmemory summarize <名字>` — 触发 AI 回顾对话补写遗漏
+- ✓ Tab 补全女仆名字
+- ✓ 支持中文女仆名字（自建 `UnicodeWordArgument` 参数类型）
+- ✓ uuid:UUID 格式精确选择女仆
+
+#### 5. 配置系统
+- ✓ `[memory]` 配置段（Cloth Config GUI）
+- ✓ `Enabled` — 记忆系统总开关（默认开）
+- ✓ `MaxMemories` — 每只女仆最大记忆数（默认 50，范围 1-200）
+- ✓ `CoreMemoryLimit` — 核心记忆全文注入上限（默认 10，范围 0-50）
+- ✓ `ContextPreviewLength` — 归档记忆截断长度（默认 30，范围 10-200）
+
+#### 6. 国际化
+- ✓ zh_cn / en_us 完整语言文件
+
+#### 7. 技术备注
+- ✓ 自定义 `UnicodeWordArgument` 解决 MC 1.20.1 Brigadier 1.1.8 不支持 Unicode 字符的问题
+- ✓ 通过 `ArgumentTypeInfos.registerByClass()` + `SingletonArgumentInfo` 注册序列化器
+- ✓ `set` / `set-core` 拆分为独立子命令，避免 Brigadier 中 `greedyString` + `literal` 同层歧义
+
+#### 8. 已知限制
+- ⚠ 无 GUI 管理界面（计划后续仿照 TaskPriorityScreen 实现）
+- ⚠ 无日记本物品（计划后续作为独立特性）
+- ⚠ 无女仆间记忆共享（属于后续"女仆间交流系统"范畴）
+- ⚠ 记忆对齐 key 查找，不支持自然语言语义搜索
 
 ---
 
@@ -226,6 +281,14 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
 /tlmchat to <名字> <消息>
 /tlmchat uuid <UUID> <消息>
 /tlmchat list          # 显示女仆列表
+
+/tlmmemory set <名字> <key> <value>                 # 设置记忆（归档）
+/tlmmemory set-core <名字> <key> <value>           # 设置核心记忆
+/tlmmemory get <名字> <key>                          # 查看记忆
+/tlmmemory list <名字>                               # 列出记忆
+/tlmmemory forget <名字> <key>                       # 删除记忆
+/tlmmemory export <名字> [json|text|context]         # 导出记忆
+/tlmmemory summarize <名字>                          # 触发 AI 回顾补记
 ```
 
 ### 配置项参考
@@ -234,4 +297,10 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
 - `RequirePrefix` - 严格前缀模式
 - `AutoChatRange` - 自动对话范围
 - `PrefixPattern` - 前缀字符
+- `[multi_task] Enabled` - 多工作模式开关
+- `[multi_task] PollInterval` - 任务轮询间隔（tick）
+- `[memory] Enabled` - 记忆系统开关
+- `[memory] MaxMemories` - 每只女仆最大记忆数
+- `[memory] CoreMemoryLimit` - 核心记忆全文注入上限
+- `[memory] ContextPreviewLength` - 归档记忆截断长度
 

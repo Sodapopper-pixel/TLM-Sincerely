@@ -30,6 +30,55 @@ property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/ou
 - `mixin.env.remapRefMap` 缺失时，Embeddium 的 `DrawContextMixin` 会抛出 `InvalidInjectionException`
 - 该错误堆栈指向 Embeddium，但根因是 build.gradle 缺少 Mixin 全局 JVM 参数
 
+### 自定义 ArgumentType 必须注册序列化器
+- **现象**：自定义 `ArgumentType` 编译通过但进存档报 `"无效的玩家数据"`
+- **日志关键行**：`Unrecognized argument type ... at ArgumentTypeInfos.byClass()`
+- **根因**：Minecraft 在玩家登录时将命令树序列化发送给客户端，`ArgumentTypeInfos` 找不到对应类的序列化器 → 抛异常 → `ServerLoginPacketListenerImpl` 终止登录
+- **解决**：在 Mod 构造器中早于命令注册时调用：
+  ```java
+  ArgumentTypeInfos.registerByClass(
+      MyArgType.class,
+      SingletonArgumentInfo.contextFree(() -> new MyArgType())
+  );
+  ```
+- **注意**：`SingletonArgumentInfo.contextFree(Supplier)` 比 `new SingletonArgumentInfo<>(Supplier)` 类型推断更稳定
+
+### Brigadier 1.1.8 不支持 Unicode 参数（MC 1.20.1）
+- **现象**：命令中传入中文/非 ASCII 参数时报 `"参数后应有空格分隔，但发现了紧邻的数据"`
+- **根因**：Brigadier 1.1.8 的 `StringReader.isAllowedInUnquotedString()` 只允许 `0-9A-Za-z_-.+`。`StringArgumentType.string()` 内部调用 `readUnquotedString()`，遇中文字符立即停止读取，参数值为空串
+- **验证**：Minecraft bug [MC-260354](https://bugs.mojang.com/browse/MC-260354)，1.20.2 才修复
+- **解决**：自建参数类型，逐字符读取直到空格（不依赖 `isAllowedInUnquotedString`）：
+  ```java
+  public class UnicodeWordArgument implements ArgumentType<String> {
+      @Override
+      public String parse(StringReader reader) {
+          final int start = reader.getCursor();
+          while (reader.canRead() && reader.peek() != ' ') {
+              reader.skip();
+          }
+          return reader.getString().substring(start, reader.getCursor());
+      }
+  }
+  ```
+- **注意**：自定义类型同样需要 `ArgumentTypeInfos.registerByClass()` 注册序列化器
+
+### Brigadier 命令树：greedyString 与 literal 同层歧义
+- **现象**：命令树中 `greedyString` 和 `literal` 作为同一父节点的子节点时，部分路径无法命中或报 `"参数后应有空格分隔"`
+- **根因**：`greedyString` 吞掉全部剩余输入，同一层的 `literal` 子节点永远无法被匹配到。Brigadier 的多路径解析会产生歧义
+- **解决**：将 `core`/`archive` 从子字面量提升为独立子命令（如 `set` → archive，`set-core` → core），确保每个分支末端只有 `greedyString` 单一终端
+- **反面模式**：
+  ```java
+  // ❌ 错误：greedyString 与 literal 同层
+  .then(argument("value", greedyString())
+      .executes(defaultAction)
+      .then(literal("core").executes(coreAction)))
+  
+  // ✅ 正确：literal 在单独分支
+  .then(argument("value", greedyString()).executes(defaultAction))
+  .then(literal("core")
+      .then(argument("value", greedyString()).executes(coreAction)))
+  ```
+
 ## Mixin 开发笔记
 
 ### compatibilityLevel 必须匹配 Mixin 版本
