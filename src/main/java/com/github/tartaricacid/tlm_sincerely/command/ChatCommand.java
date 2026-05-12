@@ -36,12 +36,12 @@ public final class ChatCommand {
                 .then(Commands.literal("global")
                         .executes(ChatCommand::toggleGlobal))
                 .then(Commands.literal("to")
-                        .then(Commands.argument("name", StringArgumentType.string())
+                        .then(Commands.argument("name", UnicodeWordArgument.word("name"))
                                 .suggests(ChatCommand::suggestMaidNames)
                                 .then(Commands.argument("message", StringArgumentType.greedyString())
                                         .executes(ChatCommand::chatWithName))))
                 .then(Commands.literal("uuid")
-                        .then(Commands.argument("uuid", StringArgumentType.string())
+                        .then(Commands.argument("uuid", UnicodeWordArgument.word("uuid"))
                                 .suggests(ChatCommand::suggestMaidUuids)
                                 .then(Commands.argument("message", StringArgumentType.greedyString())
                                         .executes(ChatCommand::chatWithUuid))))
@@ -137,7 +137,7 @@ public final class ChatCommand {
 
     private static int chatWithName(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         ServerPlayer player = context.getSource().getPlayerOrException();
-        String name = StringArgumentType.getString(context, "name");
+        String name = UnicodeWordArgument.get(context, "name");
         String message = StringArgumentType.getString(context, "message");
 
         FindResult result = MaidFinder.findByName(player, name);
@@ -160,7 +160,7 @@ public final class ChatCommand {
 
     private static int chatWithUuid(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         ServerPlayer player = context.getSource().getPlayerOrException();
-        String uuidString = StringArgumentType.getString(context, "uuid");
+        String uuidString = UnicodeWordArgument.get(context, "uuid");
         String message = StringArgumentType.getString(context, "message");
 
         EntityMaid maid = MaidFinder.findByUuid(player, uuidString);

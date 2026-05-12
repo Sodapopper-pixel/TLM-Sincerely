@@ -1,6 +1,7 @@
 package com.github.tartaricacid.tlm_sincerely.client.gui;
 
 import com.github.tartaricacid.tlm_sincerely.config.subconfig.ChatBarConfig;
+import com.github.tartaricacid.tlm_sincerely.config.subconfig.MemoryConfig;
 import com.github.tartaricacid.tlm_sincerely.config.subconfig.PriorityConfig;
 import me.shedaniel.clothconfig2.api.ConfigBuilder;
 import me.shedaniel.clothconfig2.api.ConfigCategory;
@@ -83,6 +84,47 @@ public final class ConfigScreen {
                 .setMax(6000)
                 .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.poll_interval.tooltip"))
                 .setSaveConsumer(PriorityConfig.COOLDOWN::set)
+                .build());
+
+        ConfigCategory memory = builder.getOrCreateCategory(
+                Component.translatable("config.tlm_sincerely.memory"));
+
+        memory.addEntry(entryBuilder.startBooleanToggle(
+                        Component.translatable("config.tlm_sincerely.memory.enabled"),
+                        MemoryConfig.ENABLED.get())
+                .setDefaultValue(true)
+                .setTooltip(Component.translatable("config.tlm_sincerely.memory.enabled.tooltip"))
+                .setSaveConsumer(MemoryConfig.ENABLED::set)
+                .build());
+
+        memory.addEntry(entryBuilder.startIntField(
+                        Component.translatable("config.tlm_sincerely.memory.max_memories"),
+                        MemoryConfig.MAX_MEMORIES.get())
+                .setDefaultValue(50)
+                .setMin(1)
+                .setMax(200)
+                .setTooltip(Component.translatable("config.tlm_sincerely.memory.max_memories.tooltip"))
+                .setSaveConsumer(MemoryConfig.MAX_MEMORIES::set)
+                .build());
+
+        memory.addEntry(entryBuilder.startIntField(
+                        Component.translatable("config.tlm_sincerely.memory.core_limit"),
+                        MemoryConfig.CORE_LIMIT.get())
+                .setDefaultValue(10)
+                .setMin(0)
+                .setMax(50)
+                .setTooltip(Component.translatable("config.tlm_sincerely.memory.core_limit.tooltip"))
+                .setSaveConsumer(MemoryConfig.CORE_LIMIT::set)
+                .build());
+
+        memory.addEntry(entryBuilder.startIntField(
+                        Component.translatable("config.tlm_sincerely.memory.preview_length"),
+                        MemoryConfig.CONTEXT_PREVIEW_LENGTH.get())
+                .setDefaultValue(30)
+                .setMin(10)
+                .setMax(200)
+                .setTooltip(Component.translatable("config.tlm_sincerely.memory.preview_length.tooltip"))
+                .setSaveConsumer(MemoryConfig.CONTEXT_PREVIEW_LENGTH::set)
                 .build());
 
         return builder;
