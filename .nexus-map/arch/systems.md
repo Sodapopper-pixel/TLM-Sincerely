@@ -21,9 +21,9 @@
 
 - **路径**: `src/main/java/com/github/tartaricacid/tlm_sincerely/config/`
 - **文件**:
-  - `GeneralConfig.java` (17 行) — 配置编排入口，组合 ChatBarConfig + PriorityConfig
-  - `subconfig/ChatBarConfig.java` (32 行) — 聊天栏配置项（CHAT_MODE, GLOBAL_VISIBLE, REQUIRE_PREFIX, AUTO_CHAT_RANGE, PREFIX_PATTERN）
-  - `subconfig/PriorityConfig.java` (20 行) — 优先级配置项（ENABLED, COOLDOWN）
+  - `GeneralConfig.java` — 配置编排入口，组合 ChatBarConfig + PriorityConfig
+  - `subconfig/ChatBarConfig.java` — 聊天栏配置项（CHAT_MODE, GLOBAL_VISIBLE, REQUIRE_PREFIX, AUTO_CHAT_RANGE, PREFIX_PATTERN）
+  - `subconfig/PriorityConfig.java` — 多工作模式配置项（ENABLED, COOLDOWN）
 - **技术**: ForgeConfigSpec + Configured 模组 GUI
 - **被引用**: 5 个模块导入 ChatBarConfig（最高 fan-in）
 
@@ -49,14 +49,15 @@
   - `/tlmchat <message>` — 最近女仆对话（默认）
 - **依赖**: MaidFinder（女仆查找）、ChatBarConfig（配置读写）
 
-## 5. Priority Management (`priority-management`)
+## 5. Multi-Task Management (`multi-task-management`)
 
 - **路径**: `src/main/java/com/github/tartaricacid/tlm_sincerely/priority/`
 - **文件**:
-  - `TaskPriorityPreset.java` (89 行) — 优先级数据模型（LinkedHashMap 优先级映射 + ArrayList 排序列表）
-  - `TaskPriorityManager.java` (235 行) — 预设管理器（JSON 文件持久化、CRUD、序列化/反序列化）
-  - `TaskAutoSwitchHandler.java` (90 行) — `@Mod.EventBusSubscriber`，每 20 tick 扫描活跃女仆，按优先级自动切换任务
+  - `TaskPriorityPreset.java` — 多工作模式数据模型（LinkedHashMap 优先级映射 + ArrayList 排序列表）
+  - `TaskPriorityManager.java` — 预设管理器（JSON 文件持久化、CRUD、序列化/反序列化）
+  - `TaskAutoSwitchHandler.java` — `@Mod.EventBusSubscriber`，每 20 tick 扫描活跃女仆，按优先级自动切换任务
 - **持久化**: `config/tlm_sincerely/task_priority_presets.json`（Gson 格式）
+- **配置**: `config/tlm_sincerely-common.toml` → `[multi_task]` 段（Enabled, PollInterval）
 
 ## 6. AI Tool (`ai-tool`)
 
@@ -69,18 +70,21 @@
 
 - **路径**: `src/main/java/com/github/tartaricacid/tlm_sincerely/client/`
 - **文件**:
-  - `gui/ConfigScreen.java` (97 行) — Cloth Config API 构建配置 GUI，含 chatbar + priority 两个分类
-  - `gui/priority/PriorityContainer.java` (50 行) — 容器类，继承 AbstractMaidContainer
-  - `gui/priority/PriorityContainerGui.java` (254 行) — 优先级编辑界面（左侧未排序、右侧已排序、预设切换、分页）
-  - `gui/priority/PriorityRegistry.java` (15 行) — Forge DeferredRegister（MenuType）
-  - `widget/button/FlatColorButton.java` — 自定义扁平按钮组件
-- **技术**: Cloth Config API, Minecraft GUI 框架
+  - `gui/ConfigScreen.java` — Cloth Config API 构建配置 GUI，含 chatbar + multi_task 两个分类
+  - `gui/TaskPriorityScreen.java` — 多工作模式编辑界面（独立 Screen，非 Container）
+    - 双列布局：左侧未排序任务，右侧已排序任务
+    - 顶部两行控件：第一行 [总开关] [预设名] [<] [>]，第二行靠右 [新建] [删除]
+    - 支持滚轮修改优先级数字（1-10 循环）
+    - 支持 ▲▼ 按钮调整同优先级内顺序
+    - 支持右键移除任务
+    - 实时保存，无需手动保存
+  - `gui/widget/PrioritySideTabButton.java` — 自定义侧边栏按钮组件
+- **技术**: Cloth Config API, Minecraft GUI framework, SpongePowered Mixin
 
 ## 8. Mixin (`mixin`)
 
 - **路径**: `src/main/java/com/github/tartaricacid/tlm_sincerely/mixin/`
 - **文件**:
-  - `EntityMaidGuiMixin.java` (59 行) — `@Mixin(ToggleTabMessage.class)`，拦截 tabId=5 打开 PriorityContainer
-  - `MaidChatBroadcastMixin.java` (33 行) — `@Mixin(ChatBubbleManager.class)`，Redirect sendSystemMessage
-  - `MaidTabsMixin.java` (45 行) — `@Mixin(MaidTabs.class)`，Inject getTabs 添加优先级标签
-- **Mixin 配置**: `src/main/resources/tlm_sincerely.mixins.json`
+  - `MaidSideTabsMixin.java` — `@Mixin(MaidSideTabs.class)`，Inject getTabs 添加多工作模式侧边栏按钮
+  - `MaidChatBroadcastMixin.java` — `@Mixin(ChatBubbleManager.class)`，Redirect sendSystemMessage
+- **Mixin 配置**: `src/main/resources/tlm_sincerely.mixins.json`（仅 client: MaidSideTabsMixin）

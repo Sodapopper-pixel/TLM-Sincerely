@@ -4,32 +4,32 @@
 
 # TLM Sincerely — 架构索引
 
-Minecraft Forge 1.20.1 模组《车万女仆：真心为你》(Mod ID: `tlm_sincerely`) — 车万女仆(touhou_little_maid)的附属模组，提供聊天栏女仆对话和任务优先级自动切换功能。
+Minecraft Forge 1.20.1 模组《车万女仆：真心为你》(Mod ID: `tlm_sincerely`) — 车万女仆(touhou_little_maid)的附属模组，提供聊天栏女仆对话和多工作模式自动切换功能。
 
 ## 系统概览
 
 | 系统 | 路径 | 职责 |
 |------|------|------|
 | Core Extension | `SincerelyExtension.java` | 模组入口，Forge 事件注册，子系统编排 |
-| Configuration | `config/` | ForgeConfigSpec 配置（聊天栏+优先级） |
+| Configuration | `config/` | ForgeConfigSpec 配置（聊天栏+多工作模式） |
 | Chat System | `chatbar/` | 聊天栏事件监听、@前缀解析、女仆查找 |
 | Command System | `command/` | /tlmchat Brigadier 命令 |
-| Priority Management | `priority/` | 任务优先级预设管理、JSON 持久化、自动切换 |
+| Multi-Task Management | `priority/` | 多工作模式预设管理、JSON 持久化、自动切换 |
 | AI Tool | `ai/tool/` | LLM function calling 工具 |
-| Client GUI | `client/` | 配置 GUI、优先级编辑界面、自定义组件 |
-| Mixin | `mixin/` | SpongePowered Mixin 注入（GUI 标签、聊天广播、标签拦截） |
+| Client GUI | `client/` | 配置 GUI、多工作模式编辑界面、自定义组件 |
+| Mixin | `mixin/` | SpongePowered Mixin 注入（GUI 侧边栏、聊天广播） |
 
 ## 关键依赖
 
 - **入口节点**：`SincerelyExtension` → 6 个内部子系统（fan-out 最高）
 - **耦合枢纽**：`ChatBarConfig` ← 5 个模块引用（fan-in 最高），是聊天/命令/广播/配置的配置交叉点
-- **循环依赖**：`SincerelyExtension ↔ PriorityRegistry`（良性，仅 MOD_ID 常量引用）
+- **循环依赖**：无（已清理 PriorityRegistry 循环引用）
 - **外部依赖**：`touhou_little_maid ≥ 1.5.1`（`EntityMaid`、`MaidAIChatManager`、`ILittleMaid` 等 API）；`cloth-config`；`Mixin/SpongePowered`；Minecraft Forge 1.20.1
 
 ## 规模
 
-- 19 个 Java 源文件，1733 行代码
-- 5 次 commit（90 天内），单一作者，早期开发阶段
+- 20 个 Java 源文件，约 1800 行代码
+- 多次 commit（90 天内），单一作者，活跃开发阶段
 - 无测试文件（`src/test/` 为空）
 
 ## 约束
@@ -38,6 +38,12 @@ Minecraft Forge 1.20.1 模组《车万女仆：真心为你》(Mod ID: `tlm_sinc
 - 不得自行启动 runClient 或执行 git commit
 - 入口类需 `@LittleMaidExtension` 注解 + `ILittleMaid` 接口
 - 通过 `MinecraftForge.EVENT_BUS` 注册事件处理器
+
+## 已知问题
+
+| 问题 | 严重程度 | 描述 |
+|------|----------|------|
+| 滚轮优先级焦点偏移 | 中 | 右侧列滚轮修改优先级时，行号计算基于 `taskStartY`，但鼠标坐标可能因 GUI 缩放产生偏差，导致修改的不是光标正下方的任务 |
 
 ## [操作指南] 强制执行步骤
 

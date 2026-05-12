@@ -60,6 +60,33 @@
 - `/tlmchat mode` / `mode on/off` / `global` 命令
 - 直接编辑 `config/tlm_sincerely-common.toml`
 
+## 游戏内命令
+
+**命令格式**：
+| 命令 | 效果 |
+|------|------|
+| `/tlmchat 你好吗` | 与最近女仆对话 |
+| `/tlmchat to 琪琪 你好吗` | 与指定名字的女仆对话（同名取最近） |
+| `/tlmchat uuid <UUID> 你好吗` | 与指定 UUID 的女仆对话（精确匹配） |
+| `/tlmchat list` | 显示附近女仆列表（名字、UUID、距离） |
+
+**聊天栏对话（通过配置激活）**：
+| 配置项 | 说明 |
+|--------|------|
+| `ChatModeEnabled` | 开启后监听聊天事件，直接对话女仆 |
+| `RequirePrefix` | 是否需要前缀（如 `@名字`） |
+| `PrefixPattern` | 前缀字符（默认 `@`） |
+| `AutoChatRange` | 无前缀时自动对话范围 |
+| `GlobalChatVisible` | 是否全局可见 |
+
+**同名女仆提醒**：
+- 当匹配到多个同名女仆时，会自动选择最近的
+- 系统会发送黄色提示消息，包含 UUID（8位截断）
+- 可使用 `/tlmchat list` 查看详情，或 `/tlmchat uuid` 精确指定
+
+**配置文件**：`config/tlm_sincerely.toml`（使用 Configured 模组 GUI 编辑）
+---
+
 ## 数据流详解
 
 ### 聊天栏对话流程 (ChatBarHandler)
