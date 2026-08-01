@@ -86,6 +86,44 @@ public final class ConfigScreen {
                 .setSaveConsumer(PriorityConfig.COOLDOWN::set)
                 .build());
 
+        multiTask.addEntry(entryBuilder.startBooleanToggle(
+                        Component.translatable("config.tlm_sincerely.multi_task.attack_preempt"),
+                        PriorityConfig.ATTACK_PREEMPT.get())
+                .setDefaultValue(true)
+                .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.attack_preempt.tooltip"))
+                .setSaveConsumer(PriorityConfig.ATTACK_PREEMPT::set)
+                .build());
+
+        multiTask.addEntry(entryBuilder.startIntField(
+                        Component.translatable("config.tlm_sincerely.multi_task.probe_grace_ticks"),
+                        PriorityConfig.PROBE_GRACE_TICKS.get())
+                .setDefaultValue(40)
+                .setMin(5)
+                .setMax(200)
+                .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.probe_grace_ticks.tooltip"))
+                .setSaveConsumer(PriorityConfig.PROBE_GRACE_TICKS::set)
+                .build());
+
+        multiTask.addEntry(entryBuilder.startIntField(
+                        Component.translatable("config.tlm_sincerely.multi_task.probe_wait_ticks"),
+                        PriorityConfig.PROBE_WAIT_TICKS.get())
+                .setDefaultValue(10)
+                .setMin(1)
+                .setMax(40)
+                .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.probe_wait_ticks.tooltip"))
+                .setSaveConsumer(PriorityConfig.PROBE_WAIT_TICKS::set)
+                .build());
+
+        multiTask.addEntry(entryBuilder.startIntField(
+                        Component.translatable("config.tlm_sincerely.multi_task.probe_cooldown"),
+                        PriorityConfig.PROBE_COOLDOWN.get())
+                .setDefaultValue(200)
+                .setMin(20)
+                .setMax(6000)
+                .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.probe_cooldown.tooltip"))
+                .setSaveConsumer(PriorityConfig.PROBE_COOLDOWN::set)
+                .build());
+
         ConfigCategory memory = builder.getOrCreateCategory(
                 Component.translatable("config.tlm_sincerely.memory"));
 

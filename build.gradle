@@ -130,14 +130,20 @@ dependencies {
     runtimeOnly fg.deobf("libs:ModernUI-Forge:1.20.1-3.12.0.1")
     runtimeOnly fg.deobf("libs:maid_useful_task-forge:1.20.1-1.4.0")
     runtimeOnly fg.deobf("libs:maidsoulkitchen-forge:1.20.1-0.3.0.9")
+    // IMBlocker 必须走 fg.deobf；且需使用 devfix 版：
+    // 原版 WindowMixin 同时注入 setGuiScale(D)V 与 setGuiScale(I)V（多版本兼容），
+    // 在 1.20.1 userdev 下 int 重载会被错误匹配到 double 方法导致 InvalidInjectionException。
+    // libs/IMBlocker-forge-5.4.6.1-devfix.jar 已移除 int 注入，仅保留 double。
+    runtimeOnly fg.deobf("libs:IMBlocker-forge:5.4.6.1-devfix")
     implementation fg.deobf("libs:cloth-config-forge:11.1.136")
 }
 
-tasks.register('copyModsToLocalRun', Copy) {
-    from 'libs'
-    include 'IMBlocker-forge-*.jar'
-    include 'dynamic-fps-forge-*.jar'
-    into 'run/mods'
+// 历史任务：曾把生产 jar 拷进 run/mods，在 userdev 下不可靠。
+// dynamic-fps 即便 fg.deobf 后 Mixin 仍因 SRG target 对不上 FATAL，故不在 dev 依赖中加载。
+tasks.register('copyModsToLocalRun') {
+    doLast {
+        logger.lifecycle('copyModsToLocalRun is no-op: use runtimeOnly fg.deobf for mods that need remapping. Do not put production jars into run/mods.')
+    }
 }
 
 processResources {
