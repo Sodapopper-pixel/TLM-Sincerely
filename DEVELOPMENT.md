@@ -1,4 +1,82 @@
-# 开发注意事项
+# 开发手持与注意事项
+
+## 项目结构
+
+```
+src/main/java/com/github/tartaricacid/tlm_sincerely/
+├── SincerelyExtension.java      # 入口类，实现 ILittleMaid
+├── ai/                          # AI Context 与 Tool
+├── chatbar/
+│   ├── ChatBarHandler.java       # 聊天栏事件与前缀解析
+│   └── MaidFinder.java           # 女仆查找逻辑
+├── command/
+│   ├── ChatCommand.java          # 对话命令
+│   ├── MemoryCommand.java        # 记忆管理命令
+│   └── UnicodeWordArgument.java  # 中文参数支持
+├── memory/                       # 女仆记忆持久化
+└── priority/                     # 多工作检测、缓存与切换决策
+src/main/resources/
+├── META-INF/mods.toml           # 模组元数据
+├── assets/tlm_sincerely/lang/   # 国际化文件
+├── pack.mcmeta                  # 资源包元数据
+└── data/touhou_little_maid/      # 主模组 Skill 数据
+```
+
+---
+
+## 构建命令
+
+**环境要求**：Java 17（系统默认 Java 25 会报错）
+
+```powershell
+# 设置 Java 17 环境
+$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
+
+# 构建
+.\gradlew.bat build --no-daemon
+
+# 输出位置
+build/libs/tlm_sincerely-1.20.1-forge-0.1.0.jar
+```
+
+---
+
+## 测试命令
+
+```powershell
+# 启动测试客户端（首次较慢，需下载资源）
+$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
+.\gradlew.bat runClient --no-daemon
+
+# 或双击项目根目录 runClient.bat
+```
+
+`copyModsToLocalRun` 仅为历史兼容空任务，不再复制任何模组。开发依赖统一通过 `runtimeOnly fg.deobf(...)` 加载。
+
+---
+
+### 女仆 API
+
+主模组提供的关键 API：
+- `EntityMaid` - 女仆实体类
+- `MaidAIChatManager.chat()` - AI 对话接口
+- `ChatClientInfo` - 聊天客户端信息
+- `ILittleMaid` - 附属扩展接口
+
+---
+
+## API 参考（模组作者本机环境）
+
+**主模组开发文档**：`wiki-reference/docs/wiki/dev/`
+
+关键文件：
+- `如何开始.md` - 入口注册方式
+- `ai/overview.md` - AI 系统概述
+- `ai/context.md` - 上下文注册
+
+**主模组源码**：`D:\Minecraft\TouhouLittleMaid-1.20`
+
+---
 
 ## 操作红线
 

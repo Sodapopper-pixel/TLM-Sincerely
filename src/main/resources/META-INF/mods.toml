@@ -1,25 +1,25 @@
 modLoader = "javafml"
-loaderVersion = "[47,)"
-license = "MIT"
+loaderVersion = "${loader_version_range}"
+license = "${mod_license}"
 
 [[mods]]
 modId = "tlm_sincerely"
-version = "1.0.0"
-displayName = "TLM Sincerely"
-authors = "terk"
-description = '''Touhou Little Maid addon - Chat bar conversation'''
+version = "${mod_version}"
+displayName = "车万女仆：真心为你"
+authors = "${mod_authors}"
+description = '''东方小女仆附属模组 - 人格增强、工作优先与长期记忆系统'''
 
 [[dependencies.tlm_sincerely]]
 modId = "forge"
 mandatory = true
-versionRange = "[47,)"
+versionRange = "${forge_version_range}"
 ordering = "NONE"
 side = "BOTH"
 
 [[dependencies.tlm_sincerely]]
 modId = "minecraft"
 mandatory = true
-versionRange = "[1.20.1,1.21)"
+versionRange = "${minecraft_version_range}"
 ordering = "NONE"
 side = "BOTH"
 
@@ -27,5 +27,12 @@ side = "BOTH"
 modId = "touhou_little_maid"
 mandatory = true
 versionRange = "[1.5.1,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.tlm_sincerely]]
+modId = "cloth_config"
+mandatory = true
+versionRange = "[11,)"
 ordering = "AFTER"
 side = "BOTH"

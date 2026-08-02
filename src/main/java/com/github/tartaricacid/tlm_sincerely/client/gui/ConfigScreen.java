@@ -71,7 +71,7 @@ public final class ConfigScreen {
         multiTask.addEntry(entryBuilder.startBooleanToggle(
                         Component.translatable("config.tlm_sincerely.multi_task.enabled"),
                         PriorityConfig.ENABLED.get())
-                .setDefaultValue(true)
+                .setDefaultValue(false)
                 .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.enabled.tooltip"))
                 .setSaveConsumer(PriorityConfig.ENABLED::set)
                 .build());
@@ -87,41 +87,69 @@ public final class ConfigScreen {
                 .build());
 
         multiTask.addEntry(entryBuilder.startBooleanToggle(
-                        Component.translatable("config.tlm_sincerely.multi_task.attack_preempt"),
-                        PriorityConfig.ATTACK_PREEMPT.get())
+                        Component.translatable("config.tlm_sincerely.multi_task.experimental_attack_preempt"),
+                        PriorityConfig.EXPERIMENTAL_ATTACK_PREEMPT.get())
+                .setDefaultValue(false)
+                .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.experimental_attack_preempt.tooltip"))
+                .setSaveConsumer(PriorityConfig.EXPERIMENTAL_ATTACK_PREEMPT::set)
+                .build());
+
+        multiTask.addEntry(entryBuilder.startBooleanToggle(
+                        Component.translatable("config.tlm_sincerely.multi_task.force_brain_refresh_on_stuck"),
+                        PriorityConfig.FORCE_BRAIN_REFRESH_ON_STUCK.get())
                 .setDefaultValue(true)
-                .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.attack_preempt.tooltip"))
-                .setSaveConsumer(PriorityConfig.ATTACK_PREEMPT::set)
+                .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.force_brain_refresh_on_stuck.tooltip"))
+                .setSaveConsumer(PriorityConfig.FORCE_BRAIN_REFRESH_ON_STUCK::set)
                 .build());
 
         multiTask.addEntry(entryBuilder.startIntField(
-                        Component.translatable("config.tlm_sincerely.multi_task.probe_grace_ticks"),
-                        PriorityConfig.PROBE_GRACE_TICKS.get())
-                .setDefaultValue(40)
-                .setMin(5)
-                .setMax(200)
-                .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.probe_grace_ticks.tooltip"))
-                .setSaveConsumer(PriorityConfig.PROBE_GRACE_TICKS::set)
-                .build());
-
-        multiTask.addEntry(entryBuilder.startIntField(
-                        Component.translatable("config.tlm_sincerely.multi_task.probe_wait_ticks"),
-                        PriorityConfig.PROBE_WAIT_TICKS.get())
-                .setDefaultValue(10)
+                        Component.translatable("config.tlm_sincerely.multi_task.available_confirmations"),
+                        PriorityConfig.AVAILABLE_CONFIRMATIONS.get())
+                .setDefaultValue(1)
                 .setMin(1)
-                .setMax(40)
-                .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.probe_wait_ticks.tooltip"))
-                .setSaveConsumer(PriorityConfig.PROBE_WAIT_TICKS::set)
+                .setMax(20)
+                .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.available_confirmations.tooltip"))
+                .setSaveConsumer(PriorityConfig.AVAILABLE_CONFIRMATIONS::set)
                 .build());
 
         multiTask.addEntry(entryBuilder.startIntField(
-                        Component.translatable("config.tlm_sincerely.multi_task.probe_cooldown"),
-                        PriorityConfig.PROBE_COOLDOWN.get())
-                .setDefaultValue(200)
-                .setMin(20)
-                .setMax(6000)
-                .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.probe_cooldown.tooltip"))
-                .setSaveConsumer(PriorityConfig.PROBE_COOLDOWN::set)
+                        Component.translatable("config.tlm_sincerely.multi_task.unavailable_confirmations"),
+                        PriorityConfig.UNAVAILABLE_CONFIRMATIONS.get())
+                .setDefaultValue(2)
+                .setMin(1)
+                .setMax(20)
+                .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.unavailable_confirmations.tooltip"))
+                .setSaveConsumer(PriorityConfig.UNAVAILABLE_CONFIRMATIONS::set)
+                .build());
+
+        multiTask.addEntry(entryBuilder.startIntField(
+                        Component.translatable("config.tlm_sincerely.multi_task.minimum_task_hold_ticks"),
+                        PriorityConfig.MINIMUM_TASK_HOLD_TICKS.get())
+                .setDefaultValue(60)
+                .setMin(0)
+                .setMax(12000)
+                .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.minimum_task_hold_ticks.tooltip"))
+                .setSaveConsumer(PriorityConfig.MINIMUM_TASK_HOLD_TICKS::set)
+                .build());
+
+        multiTask.addEntry(entryBuilder.startIntField(
+                        Component.translatable("config.tlm_sincerely.multi_task.detection_block_budget"),
+                        PriorityConfig.DETECTION_BLOCK_BUDGET_PER_TICK.get())
+                .setDefaultValue(256)
+                .setMin(16)
+                .setMax(4096)
+                .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.detection_block_budget.tooltip"))
+                .setSaveConsumer(PriorityConfig.DETECTION_BLOCK_BUDGET_PER_TICK::set)
+                .build());
+
+        multiTask.addEntry(entryBuilder.startIntField(
+                        Component.translatable("config.tlm_sincerely.multi_task.path_check_budget"),
+                        PriorityConfig.PATH_CHECK_BUDGET_PER_TICK.get())
+                .setDefaultValue(4)
+                .setMin(1)
+                .setMax(128)
+                .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.path_check_budget.tooltip"))
+                .setSaveConsumer(PriorityConfig.PATH_CHECK_BUDGET_PER_TICK::set)
                 .build());
 
         ConfigCategory memory = builder.getOrCreateCategory(

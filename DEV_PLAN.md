@@ -4,10 +4,10 @@
 
 - **模组名称**：《车万女仆：真心为你》
 - **Mod ID**: `tlm_sincerely`
-- **版本**: 1.0.0 (Forge 1.20.1)
+- **版本**: 0.1.0 (Forge 1.20.1)
 - **主模组依赖**: touhou_little_maid ≥ 1.5.1
 - **开发者**: terk
-- **最近更新日期**：
+- **最近更新日期**：2026-08-02
 
 ---
 
@@ -19,83 +19,11 @@
 
 ---
 
-## 项目结构
-
-```
-src/main/java/com/github/tartaricacid/tlm_sincerely/
-├── SincerelyExtension.java      # 入口类，实现 ILittleMaid
-├── chatbar/
-│   ├── MaidFinder.java          # 女仆查找逻辑
-│   ├── ChatParser.java          # 消息解析
-│   └── ChatTarget.java          # 解析结果
-├── command/
-│   └── ChatCommand.java         # Brigadier 命令
-src/main/resources/
-├── META-INF/mods.toml           # 模组元数据
-├── assets/tlm_sincerely/lang/   # 国际化文件
-├── pack.mcmeta                  # 资源包元数据
-```
-
----
-
-## 构建命令
-
-**环境要求**：Java 17（系统默认 Java 25 会报错）
-
-```powershell
-# 设置 Java 17 环境
-$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
-
-# 构建
-.\gradlew.bat build --no-daemon
-
-# 输出位置
-build/libs/tlm_sincerely-1.20.1-forge-1.0.0.jar
-```
-
----
-
-## 测试命令
-
-```powershell
-# 复制Mixin模组到run/mods目录（解决开发环境refMap问题）
-.\gradlew.bat copyModsToLocalRun --no-daemon
-
-# 启动测试客户端（首次较慢，需下载资源）
-$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
-.\gradlew.bat runClient --no-daemon
-```
-
----
-
-### 女仆 API
-
-主模组提供的关键 API：
-- `EntityMaid` - 女仆实体类
-- `MaidAIChatManager.chat()` - AI 对话接口
-- `ChatClientInfo` - 聊天客户端信息
-- `ILittleMaid` - 附属扩展接口
-
----
-
-## API 参考
-
-**主模组开发文档**：`wiki-reference/docs/wiki/dev/`
-
-关键文件：
-- `如何开始.md` - 入口注册方式
-- `ai/overview.md` - AI 系统概述
-- `ai/context.md` - 上下文注册
-
-**主模组源码**：`D:\Minecraft\TouhouLittleMaid-1.20`
-
----
-
 ## 已实现与待实现功能
 
 ### 一、聊天栏女仆对话（基本实现）
 
-- `CHATBAR.md` - 聊天栏女仆对话功能开发文档（架构、数据流、Mixin 细节）
+- `docs/聊天栏女仆对话模块.md` - 聊天栏女仆对话功能开发文档（架构、数据流、Mixin 细节）
 
 #### 1. 基础对话命令
 - ✓ `/tlmchat <消息>` - 与最近女仆对话
@@ -138,9 +66,10 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
 - ⏸ Mixin ChatScreen 注入按钮
 - ⏸ 备选方案：按键绑定 / Overlay HUD
 
-### 二、多工作模式（已实现）
+### 二、多工作模式（已实现，2026-08-01 重构独立工作检测）
 
-- `PRIORITY.md` - 多工作模式开发文档（架构、API、Mixin、配置格式）
+- `docs/自动切换工作模块.md` - 多工作模式开发文档（检测架构、切换规则、配置格式）
+- `docs/plans/独立工作检测系统重构计划.md` - 已完成的独立检测系统重构计划归档
 
 #### 1. 数据层
 - ✓ TaskPriorityPreset - 预设数据类（优先级映射 + 排序列表）
@@ -148,9 +77,15 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
 - ✓ 配置文件：`config/tlm_sincerely/task_priority_presets.json`
 
 #### 2. 自动切换
-- ✓ TaskAutoSwitchHandler - ServerTickEvent 轮询，每 20 tick 检查
-- ✓ 按优先级 + IMaidTask.isEnable() 条件自动切换
-- ✓ 冷却机制（默认 100 tick = 5 秒）
+- ✓ TaskAutoSwitchHandler - Forge ServerTickEvent 调度入口，仅处理 `Activity.WORK` 女仆
+- ✓ TaskWorkDetectorRegistry - 按 UID / 接口注册只读工作检测器，未适配任务返回 `UNKNOWN`
+- ✓ AttackTaskWorkDetector - `IAttackTask.findFirstValidAttackTarget()` 独立检测
+- ✓ FarmTaskWorkDetector - `IFarmTask` 增量扫描、种子快照、方块与路径预算
+- ✓ MaidDetectionCache / TaskDetectionRuntimeState - 按服务器会话隔离缓存、游标和生命周期清理
+- ✓ TaskSwitchDecisionEngine - 唯一自动 `maid.setTask()` 调用点，确认次数、最短保持与 UNKNOWN 保守保持
+- ✓ 实验性攻击抢占默认关闭，仅允许预设中已配置的攻击任务立即抢占
+- ✓ 自动切换后任务仍为 AVAILABLE 但连续 60 tick 无工作目标时，可按默认开启的配置强制刷新一次 Brain
+- ✓ 旧 Probe 试切、Brain idle 判断、Memory 清理逻辑及旧配置字段已删除
 
 #### 3. GUI 层
 - ✓ TaskPriorityScreen - 独立 Screen（非 Container）
@@ -168,7 +103,7 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
 - ✓ 支持 query / set / switch_preset 三个 action
 
 #### 5. 配置系统
-- ✓ PriorityConfig - ENABLED + COOLDOWN（配置段：`[multi_task]`）
+- ✓ PriorityConfig - 检测确认、最短保持、检测预算、阻塞 Brain 刷新与实验性攻击抢占（配置段：`[multi_task]`）
 - ✓ 默认关闭多工作模式
 - ✓ 界面总开关实时切换
 
@@ -181,6 +116,8 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
 ---
 
 ### 三、简易记忆系统
+
+- `docs/简易记忆系统模块.md` - 简易记忆系统功能与命令说明
 
 为女仆提供持久化的键值对记忆存储，让女仆能"记住"玩家的偏好、历史事件和个人信息。
 
@@ -303,4 +240,3 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
 - `[memory] MaxMemories` - 每只女仆最大记忆数
 - `[memory] CoreMemoryLimit` - 核心记忆全文注入上限
 - `[memory] ContextPreviewLength` - 归档记忆截断长度
-
