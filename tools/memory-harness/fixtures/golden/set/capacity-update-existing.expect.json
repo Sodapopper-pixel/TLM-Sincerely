@@ -1,0 +1,30 @@
+{
+  "maxMemories": 2,
+  "seed": [
+    {
+      "key": "a",
+      "value": "1",
+      "importance": "archive"
+    },
+    {
+      "key": "b",
+      "value": "2",
+      "importance": "archive"
+    }
+  ],
+  "action": {
+    "key": "a",
+    "value": "new",
+    "importance": "core"
+  },
+  "expected": {
+    "a": {
+      "value": "new",
+      "importance": "core"
+    },
+    "b": {
+      "value": "2",
+      "importance": "archive"
+    }
+  }
+}

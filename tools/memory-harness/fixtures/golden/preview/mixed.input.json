@@ -1,0 +1,16 @@
+{
+  "coreLimit": 10,
+  "previewLength": 30,
+  "memories": [
+    {
+      "key": "name",
+      "value": "Reimu",
+      "importance": "core"
+    },
+    {
+      "key": "todo",
+      "value": "buy mushrooms",
+      "importance": "archive"
+    }
+  ]
+}

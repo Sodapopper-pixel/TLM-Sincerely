@@ -1,0 +1,29 @@
+{
+  "id": "recall-from-preview",
+  "intent": "archive memory only in preview; ask for detail -> recall full",
+  "env": {},
+  "initialMemory": [
+    { "key": "player_hobby", "value": "reading mystery novels in the garden on rainy afternoons", "importance": "archive" }
+  ],
+  "opening": "What is my hobby exactly? Tell me the full detail.",
+  "recording": [
+    {
+      "tool_calls": [
+        {
+          "id": "c1",
+          "type": "function",
+          "function": {
+            "name": "tlm_memory",
+            "arguments": "{\"action\":\"recall\",\"key\":\"player_hobby\"}"
+          }
+        }
+      ]
+    },
+    { "content": "Your hobby is reading mystery novels in the garden on rainy afternoons." }
+  ],
+  "assertions": {
+    "toolCalls": ["tlm_memory"],
+    "finalContains": ["mystery novels"],
+    "contextContains": ["player_hobby"]
+  }
+}

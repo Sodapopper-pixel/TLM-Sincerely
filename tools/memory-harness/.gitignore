@@ -1,0 +1,33 @@
+# dependencies
+node_modules/
+
+# build
+dist/
+*.tsbuildinfo
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# env
+.env
+.env.local
+.env.*.local
+
+# runtime data (keep data/.gitkeep)
+data/*
+!data/.gitkeep
+
+# fixture recordings (if any)
+fixtures/**/recordings/
+fixtures/**/*.recording.*
+
+# editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

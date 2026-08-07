@@ -1,0 +1,29 @@
+{
+  "id": "forget-on-request",
+  "intent": "player asks to forget a memory",
+  "env": {},
+  "initialMemory": [
+    { "key": "old_nick", "value": "kiddo", "importance": "archive" }
+  ],
+  "opening": "Please forget the memory about my old nickname.",
+  "recording": [
+    {
+      "tool_calls": [
+        {
+          "id": "c1",
+          "type": "function",
+          "function": {
+            "name": "tlm_memory",
+            "arguments": "{\"action\":\"forget\",\"key\":\"old_nick\"}"
+          }
+        }
+      ]
+    },
+    { "content": "Done, I've forgotten the memory about your old nickname." }
+  ],
+  "assertions": {
+    "toolCalls": ["tlm_memory"],
+    "memoryAbsent": ["old_nick"],
+    "finalContains": ["forgotten"]
+  }
+}

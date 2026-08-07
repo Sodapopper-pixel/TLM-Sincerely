@@ -1,0 +1,16 @@
+{
+  "coreLimit": 10,
+  "previewLength": 30,
+  "memories": [
+    {
+      "key": "note",
+      "value": "a fairly long note that exceeds the preview length of thirty",
+      "importance": "archive"
+    },
+    {
+      "key": "short",
+      "value": "hi",
+      "importance": "archive"
+    }
+  ]
+}

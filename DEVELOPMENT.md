@@ -1,4 +1,4 @@
-# 开发手持与注意事项
+# 开发手册与注意事项
 
 ## 项目结构
 
@@ -74,7 +74,9 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
 - `ai/overview.md` - AI 系统概述
 - `ai/context.md` - 上下文注册
 
-**主模组源码**：`D:\Minecraft\TouhouLittleMaid-1.20`
+**主模组源码**（远端，按需 `git clone`）：
+- 官方仓库：`https://github.com/TartaricAcid/TouhouLittleMaid`（1.20.1 对应 `1.20` 分支）
+- 本机不保留主模组源码副本，需要时从官方仓库拉取（对应版本为 `1.5.2-forge`）
 
 ---
 

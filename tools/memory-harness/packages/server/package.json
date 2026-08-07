@@ -1,0 +1,30 @@
+{
+  "name": "@tlm-harness/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "HTTP API server placeholder for memory harness (skeleton)",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@tlm-harness/agent": "*",
+    "@tlm-harness/core": "*"
+  },
+  "devDependencies": {
+    "@types/node": "*"
+  },
+  "files": [
+    "dist"
+  ]
+}

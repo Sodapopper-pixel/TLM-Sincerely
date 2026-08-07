@@ -51,11 +51,7 @@ public class MaidMemoryTool implements ITool<MaidMemoryTool.Result> {
         root.addProperties("action", action);
 
         StringParameter key = StringParameter.create()
-                .setDescription("The memory key (unique identifier for the memory)");
-        MaidMemory memory = MaidMemoryManager.load(maid.getUUID());
-        for (String existingKey : memory.keys()) {
-            key.addEnumValues(existingKey);
-        }
+                .setDescription("The memory key (unique identifier for the memory). For 'remember' this may be a new key; for 'recall'/'forget' use an existing key (see preview or 'Available keys' in tool errors).");
         root.addProperties("key", key, false);
 
         StringParameter value = StringParameter.create()
@@ -110,7 +106,8 @@ public class MaidMemoryTool implements ITool<MaidMemoryTool.Result> {
         }
 
         int max = MemoryConfig.MAX_MEMORIES.get();
-        if (memory.size() >= max && !memory.getMemories().containsKey(result.key())) {
+        String trimmedKey = result.key().trim();
+        if (memory.size() >= max && !memory.getMemories().containsKey(trimmedKey)) {
             return "Memory limit reached (%d max). Delete some memories first with 'forget'.".formatted(max);
         }
 

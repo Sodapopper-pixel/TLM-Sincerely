@@ -1,0 +1,28 @@
+{
+  "name": "@tlm-harness/agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Agent loop placeholder for memory harness (skeleton)",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tlm-harness/core": "*"
+  },
+  "devDependencies": {
+    "@types/node": "*"
+  },
+  "files": [
+    "dist"
+  ]
+}

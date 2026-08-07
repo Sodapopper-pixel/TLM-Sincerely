@@ -1,0 +1,3 @@
+  name: Reimu
+  todo: "buy mushrooms"
+2 memories total, 1 core, 1 archive

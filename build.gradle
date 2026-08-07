@@ -189,3 +189,19 @@ idea {
         downloadJavadoc = true
     }
 }
+
+// ===== Memory harness golden tools (src/test, no Forge bootstrap required) =====
+def goldenMainClass = 'com.github.tartaricacid.tlm_sincerely.memory.GoldenDump'
+tasks.register('generateGolden', JavaExec) {
+    group = 'verification'
+    description = 'Regenerate tools/memory-harness/fixtures/golden from Java authority impl'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = goldenMainClass
+    args '--generate'
+}
+tasks.register('goldenCheck', JavaExec) {
+    group = 'verification'
+    description = 'Assert Java authority impl matches committed golden fixtures'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = goldenMainClass
+}

@@ -1,0 +1,575 @@
+/* Observability-first UI — no animations, plain layout */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: ui-monospace, "Cascadia Code", "Consolas", "Segoe UI Mono", monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #1a1a1a;
+  background: #e8e8e8;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  background: #f4f4f4;
+  border: 1px solid #888;
+  padding: 4px 10px;
+}
+
+button:hover:not(:disabled) {
+  background: #fff;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+input,
+select,
+textarea {
+  border: 1px solid #888;
+  background: #fff;
+  padding: 3px 6px;
+  width: 100%;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 48px;
+}
+
+label {
+  display: block;
+  margin-bottom: 2px;
+  color: #444;
+  font-size: 12px;
+}
+
+.field {
+  margin-bottom: 8px;
+}
+
+.hint {
+  color: #666;
+  font-size: 11px;
+  margin: 4px 0 8px;
+}
+
+.hint.warn {
+  color: #8a5a00;
+  background: #fff8e0;
+  border: 1px solid #e0c060;
+  padding: 4px 6px;
+}
+
+.error-banner {
+  background: #fde8e8;
+  border: 1px solid #c44;
+  color: #800;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.app-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  background: #2b2b2b;
+  color: #f0f0f0;
+  border-bottom: 1px solid #000;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.app-header .session-id {
+  color: #aaa;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-header .token-stats {
+  margin-left: auto;
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  color: #ccc;
+  white-space: nowrap;
+}
+
+.app-header .token-stats b {
+  color: #9cdcfe;
+}
+
+.app-header .token-stats .token-sub {
+  color: #888;
+  font-size: 10px;
+}
+
+.app-main {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 280px 1fr 320px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: #fafafa;
+  border-right: 1px solid #bbb;
+  overflow: hidden;
+}
+
+.panel:last-child {
+  border-right: none;
+}
+
+.panel-header {
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  background: #ddd;
+  border-bottom: 1px solid #bbb;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.panel-body {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 8px;
+  min-height: 0;
+}
+
+.panel-section {
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed #ccc;
+}
+
+.panel-section:last-child {
+  border-bottom: none;
+}
+
+.panel-section h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #555;
+}
+
+/* Sidebar */
+
+.session-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.session-list li {
+  display: flex;
+  align-items: stretch;
+  margin-bottom: 2px;
+  border: 1px solid transparent;
+}
+
+.session-list li.active {
+  border-color: #3366aa;
+  background: #e8f0ff;
+}
+
+.session-list button.session-pick {
+  flex: 1 1 auto;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 4px 6px;
+  overflow: hidden;
+}
+
+.session-list button.session-del {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: #a33;
+  padding: 2px 6px;
+}
+
+.session-meta {
+  display: block;
+  font-size: 11px;
+  color: #666;
+}
+
+.row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.row > * {
+  flex: 1 1 auto;
+}
+
+.row > button {
+  flex: 0 0 auto;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.checkbox-row input {
+  width: auto;
+}
+
+/* Chat */
+
+.chat-panel {
+  background: #fff;
+}
+
+.chat-log {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 10px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bubble {
+  max-width: 92%;
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.bubble.user {
+  align-self: flex-end;
+  background: #e8f0ff;
+  border-color: #9ab;
+}
+
+.bubble.assistant {
+  align-self: flex-start;
+  background: #f5f5f5;
+  border-color: #bbb;
+}
+
+.bubble.error {
+  align-self: stretch;
+  background: #fde8e8;
+  border-color: #c44;
+  color: #800;
+}
+
+.bubble .role {
+  display: block;
+  font-size: 10px;
+  color: #666;
+  margin-bottom: 2px;
+  text-transform: uppercase;
+}
+
+.tool-bar {
+  align-self: stretch;
+  border: 1px solid #c9b87a;
+  background: #fffbeb;
+}
+
+.tool-bar summary {
+  cursor: pointer;
+  padding: 4px 8px;
+  font-weight: 600;
+  list-style: none;
+}
+
+.tool-bar summary::-webkit-details-marker {
+  display: none;
+}
+
+.tool-bar summary::before {
+  content: "▸ ";
+  color: #886;
+}
+
+.tool-bar[open] summary::before {
+  content: "▾ ";
+}
+
+.tool-bar .tool-detail {
+  padding: 6px 8px;
+  border-top: 1px solid #e0d4a0;
+  font-size: 12px;
+  background: #fffef5;
+}
+
+.tool-bar .tool-detail pre {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.chat-composer {
+  flex: 0 0 auto;
+  border-top: 1px solid #bbb;
+  padding: 8px;
+  background: #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chat-composer .actions {
+  display: flex;
+  gap: 6px;
+}
+
+.chat-composer textarea {
+  min-height: 64px;
+}
+
+.streaming-flag {
+  color: #06c;
+  font-size: 11px;
+}
+
+/* Memory inspector */
+
+.mem-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.mem-item {
+  border: 1px solid #ccc;
+  margin-bottom: 6px;
+  padding: 6px;
+  background: #fff;
+}
+
+.mem-item.hl-added {
+  border-color: #2a8;
+  background: #e8fff0;
+}
+
+.mem-item.hl-updated {
+  border-color: #28a;
+  background: #e8f4ff;
+}
+
+.mem-item.hl-removed {
+  border-color: #c44;
+  background: #fde8e8;
+  opacity: 0.7;
+  text-decoration: line-through;
+}
+
+.mem-item .mem-key {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.mem-item .badge {
+  font-size: 11px;
+  color: #555;
+}
+
+.mem-item .mem-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.mem-item textarea {
+  min-height: 40px;
+  font-size: 12px;
+}
+
+.import-export {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.import-export .row select {
+  max-width: 120px;
+}
+
+/* Debug drawer */
+
+.debug-drawer {
+  flex: 0 0 auto;
+  border-top: 1px solid #888;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.debug-drawer.collapsed {
+  height: auto;
+  overflow: visible;
+}
+
+.debug-resizer {
+  flex: 0 0 auto;
+  height: 4px;
+  cursor: row-resize;
+  background: #2d2d2d;
+  border-bottom: 1px solid #444;
+}
+
+.debug-resizer:hover {
+  background: #007acc;
+}
+
+.debug-drawer .panel-header {
+  background: #2d2d2d;
+  color: #ccc;
+  border-bottom: 1px solid #444;
+}
+
+.debug-drawer .panel-body {
+  overflow: auto;
+  min-height: 0;
+}
+
+.debug-stats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.debug-stats span {
+  color: #9cdcfe;
+}
+
+.debug-json {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 11px;
+  max-height: 180px;
+  overflow: auto;
+  background: #111;
+  border: 1px solid #444;
+  padding: 6px;
+}
+
+.debug-skill-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 11px;
+}
+
+.debug-skill-list li {
+  margin-bottom: 2px;
+}
+
+.debug-skill-list .skill-desc {
+  color: #888;
+}
+
+.user-scenario-list {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+}
+
+.user-scenario-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px solid #ddd;
+}
+
+.user-scenario-list li:last-child {
+  border-bottom: none;
+}
+
+.user-scenario-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.user-scenario-actions {
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.user-scenario-actions button {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+.empty {
+  color: #888;
+  font-style: italic;
+  padding: 8px 0;
+}
+
+.num-input {
+  width: 100%;
+}

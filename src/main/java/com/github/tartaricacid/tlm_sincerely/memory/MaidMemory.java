@@ -88,13 +88,20 @@ public class MaidMemory {
 
         int coreCount = 0;
         for (Map.Entry<String, MemoryEntry> entry : coreEntries) {
-            if (coreCount >= coreLimit) {
-                break;
+            if (coreCount < coreLimit) {
+                sb.append("  ").append(entry.getKey())
+                        .append(": ").append(entry.getValue().value())
+                        .append("\n");
+                coreCount++;
+            } else {
+                String value = entry.getValue().value();
+                String preview = value.length() > previewLength
+                        ? value.substring(0, previewLength) + "..."
+                        : value;
+                sb.append("  ").append(entry.getKey())
+                        .append(": \"").append(preview).append("\"")
+                        .append("\n");
             }
-            sb.append("  ").append(entry.getKey())
-                    .append(": ").append(entry.getValue().value())
-                    .append("\n");
-            coreCount++;
         }
 
         for (Map.Entry<String, MemoryEntry> entry : archiveEntries) {

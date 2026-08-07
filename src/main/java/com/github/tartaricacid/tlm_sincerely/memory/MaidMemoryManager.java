@@ -17,13 +17,20 @@ import java.util.UUID;
 
 public final class MaidMemoryManager {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final Path MEMORY_DIR = FMLPaths.CONFIGDIR.get().resolve("tlm_sincerely").resolve("maid_memories");
 
     private MaidMemoryManager() {
     }
 
+    private static Path memoryDir() {
+        return FMLPaths.CONFIGDIR.get().resolve("tlm_sincerely").resolve("maid_memories");
+    }
+
     public static MaidMemory load(UUID maidUuid) {
-        File file = getFile(maidUuid);
+        return loadFrom(memoryDir(), maidUuid);
+    }
+
+    static MaidMemory loadFrom(Path dir, UUID maidUuid) {
+        File file = getFile(dir, maidUuid);
         if (!file.exists()) {
             return new MaidMemory();
         }
@@ -54,8 +61,12 @@ public final class MaidMemoryManager {
     }
 
     public static void save(UUID maidUuid, MaidMemory memory) {
+        saveTo(memoryDir(), maidUuid, memory);
+    }
+
+    static void saveTo(Path dir, UUID maidUuid, MaidMemory memory) {
         try {
-            MEMORY_DIR.toFile().mkdirs();
+            dir.toFile().mkdirs();
 
             JsonObject root = new JsonObject();
             JsonObject memObj = new JsonObject();
@@ -72,14 +83,14 @@ public final class MaidMemoryManager {
 
             root.add("memories", memObj);
 
-            File file = getFile(maidUuid);
+            File file = getFile(dir, maidUuid);
             FileUtils.writeStringToFile(file, GSON.toJson(root), StandardCharsets.UTF_8);
         } catch (IOException ignored) {
         }
     }
 
     public static int count() {
-        File dir = MEMORY_DIR.toFile();
+        File dir = memoryDir().toFile();
         if (!dir.exists()) {
             return 0;
         }
@@ -87,7 +98,7 @@ public final class MaidMemoryManager {
         return files != null ? files.length : 0;
     }
 
-    private static File getFile(UUID maidUuid) {
-        return MEMORY_DIR.resolve(maidUuid.toString() + ".json").toFile();
+    private static File getFile(Path dir, UUID maidUuid) {
+        return dir.resolve(maidUuid.toString() + ".json").toFile();
     }
 }

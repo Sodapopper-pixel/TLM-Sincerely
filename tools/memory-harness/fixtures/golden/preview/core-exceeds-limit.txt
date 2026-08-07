@@ -1,0 +1,4 @@
+  c1: core one
+  c2: "core two"
+  c3: "core three"
+3 memories total, 3 core

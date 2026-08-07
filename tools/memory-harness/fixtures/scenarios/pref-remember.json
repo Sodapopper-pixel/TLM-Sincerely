@@ -1,0 +1,27 @@
+{
+  "id": "pref-remember",
+  "intent": "player asks to remember a preference",
+  "env": {},
+  "initialMemory": [],
+  "opening": "Please remember that my favorite food is pumpkin pie.",
+  "recording": [
+    {
+      "tool_calls": [
+        {
+          "id": "c1",
+          "type": "function",
+          "function": {
+            "name": "tlm_memory",
+            "arguments": "{\"action\":\"remember\",\"key\":\"favorite_food\",\"value\":\"pumpkin pie\",\"importance\":\"core\"}"
+          }
+        }
+      ]
+    },
+    { "content": "Got it! I'll remember that your favorite food is pumpkin pie." }
+  ],
+  "assertions": {
+    "toolCalls": ["tlm_memory"],
+    "memoryHas": { "favorite_food": "pumpkin pie" },
+    "finalContains": ["pumpkin pie"]
+  }
+}

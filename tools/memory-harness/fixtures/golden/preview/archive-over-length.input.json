@@ -1,0 +1,11 @@
+{
+  "coreLimit": 10,
+  "previewLength": 30,
+  "memories": [
+    {
+      "key": "k",
+      "value": "0123456789012345678901234567890",
+      "importance": "archive"
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+  name: Reimu
+  owner: Marisa
+2 memories total, 2 core

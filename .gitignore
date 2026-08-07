@@ -8,3 +8,5 @@ libs/
 !gradle/wrapper/*.jar
 .kilo/node_modules/
 .nexus-map/raw
+logs/
+bin/test/

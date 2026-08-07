@@ -1,0 +1,15 @@
+{
+  "maxMemories": 50,
+  "seed": [],
+  "action": {
+    "key": " foo ",
+    "value": " bar ",
+    "importance": "core"
+  },
+  "expected": {
+    "foo": {
+      "value": "bar",
+      "importance": "core"
+    }
+  }
+}

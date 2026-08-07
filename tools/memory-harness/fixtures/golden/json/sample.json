@@ -1,0 +1,16 @@
+{
+  "memories": {
+    "name": {
+      "value": "Reimu",
+      "importance": "core",
+      "createdAt": 0,
+      "updatedAt": 0
+    },
+    "todo": {
+      "value": "buy mushrooms",
+      "importance": "archive",
+      "createdAt": 0,
+      "updatedAt": 0
+    }
+  }
+}

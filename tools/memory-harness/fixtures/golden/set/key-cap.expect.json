@@ -1,0 +1,15 @@
+{
+  "maxMemories": 50,
+  "seed": [],
+  "action": {
+    "key": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+    "value": "v",
+    "importance": "archive"
+  },
+  "expected": {
+    "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk": {
+      "value": "v",
+      "importance": "archive"
+    }
+  }
+}

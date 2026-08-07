@@ -1,0 +1,16 @@
+{
+  "coreLimit": 0,
+  "previewLength": 30,
+  "memories": [
+    {
+      "key": "c1",
+      "value": "core one",
+      "importance": "core"
+    },
+    {
+      "key": "c2",
+      "value": "core two",
+      "importance": "core"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "name": "tlm-memory-harness",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "简易记忆系统游戏外测试环境",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "dev:server": "node packages/server/dist/main.js",
+    "dev:web": "npm --workspace @tlm-harness/web run dev",
+    "test": "vitest run",
+    "test:golden": "vitest run packages/core/test",
+    "test:scenarios": "vitest run packages/agent/test/scenarios.test.ts",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "typescript": "^5.4.0",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
