@@ -74,9 +74,20 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
 - `ai/overview.md` - AI 系统概述
 - `ai/context.md` - 上下文注册
 
-**主模组源码**（远端，按需 `git clone`）：
-- 官方仓库：`https://github.com/TartaricAcid/TouhouLittleMaid`（1.20.1 对应 `1.20` 分支）
-- 本机不保留主模组源码副本，需要时从官方仓库拉取（对应版本为 `1.5.2-forge`）
+**主模组源码查询**（本机不保留源码副本，按需查询，从最优到兜底）：
+
+1. **依赖 jar 反编译（首选，最贴近实际编译产物）**：`compileJava` 后主模组 jar 已在 Gradle 缓存：
+   `~/.gradle/caches/modules-2/files-2.1/maven.modrinth/touhou-little-maid/1.5.3-forge+mc1.20.1/.../touhou-little-maid-1.5.3-forge+mc1.20.1.jar`
+   IDE（IntelliJ 内置反编译器）搜索类名可直接阅读；需要字节码级证据（常量、方法体）时用：
+   `javap -p -c -constants -classpath <jar> <全限定类名>`
+   这是唯一能精确对应 1.5.3 release 的途径（GitHub `1.20` 分支是快照开发线，可能领先/滞后于正式版）。
+2. **浅克隆官方仓库（需要跨文件浏览、git 历史时）**：
+   `git clone --depth 1 --branch 1.20 https://github.com/TartaricAcid/TouhouLittleMaid.git`
+   对应版本为 `1.5.3-forge`；如需更新 `git -C <目录> pull`。clone 后可用 rg/IDE 全文检索。
+3. **GitHub 网页端**（仅看单个文件、不想 clone 时）：`https://github.com/TartaricAcid/TouhouLittleMaid/tree/1.20/src/main/java/...` 或按路径直达文件。
+4. **运行目录兜底**：`run/mods/` 中的生产 jar 或开发环境 `run/` 下的 mods，无 Maven 缓存时可用反编译工具打开。
+
+> 注意：GitHub 上该仓库只有 snapshot 预发布 tag，正式版（release）发布在 Modrinth。查询与当前依赖版本严格对应的实现时，一律以第 1 条（依赖 jar）为准；GitHub 源码仅用于理解结构与实现意图。
 
 ---
 
@@ -100,7 +111,7 @@ property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/ou
 ### 3. 修改 build.gradle 后用 `git diff` 核对改动
 每次修改完 `build.gradle`，检查 diff 确保没有误删共享依赖或配置项。
 
-## 常见陷阱
+## 开发笔记与常见事项
 
 ### 配置冲突 `Config conflict detected!`
 - **原因**：`@Mod` 和 `@LittleMaidExtension` 注解共存导致双重实例化
@@ -158,9 +169,6 @@ property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/ou
   .then(literal("core")
       .then(argument("value", greedyString()).executes(coreAction)))
   ```
-
-## Mixin 开发笔记
-
 ### compatibilityLevel 必须匹配 Mixin 版本
 Mixin 0.8.5 最大支持 `JAVA_13`，不能写 `JAVA_17`。写错会导致 Mixin 类不加载。
 ```json
@@ -187,6 +195,24 @@ Mixin 0.8.5 最大支持 `JAVA_13`，不能写 `JAVA_17`。写错会导致 Mixin
 ### 编译失败排除
 - `error: package org.spongepowered.asm.mixin.injection.wrap does not exist` → `@WrapOperation` 来自 MixinExtras，不包含在 `mixingradle 0.7 + Mixin 0.8.5` 中。需要额外添加 MixinExtras 依赖或改用 `@Redirect`
 - `Class version 61 required is higher than the class version supported (JAVA_8 supports class version 52)` → 无影响的 WARN，仅表示 Mixin 运行时 class version 高于声明的 compatibilityLevel
+
+### Mixin 到主模组（TLM）自定义类时的 remap 处理
+- **现象**：mixin 到 TLM 的类（如 `MaidAIChatManager`、`ChatBubbleManager`）时，注入的方法名在 refmap 中找不到映射
+- **解决**：在 `@Mixin` 注解上设 `remap = false`（使类内所有注入默认不 remap）
+- **注意**：原版类引用的混淆由 Forge reobf 处理，不受 mixin remap 影响
+
+### javap 输出换行截断导致方法签名误读
+- **现象**：`javap -p` 输出跨行截断，长参数列表易误读参数个数
+- **案例**：`MaidAIChatManager.tts` 实际 4 参数，跨行显示被误读为 5 参数，导致 mixin handler 参数不匹配崩溃
+- **解决**：关键签名应单独 javap 确认，不依赖跨行截断的输出
+
+### `@Redirect` target 描述符格式
+- 格式：`L<owner>;method_name(descriptor)V`
+- 泛型擦除：`List<LLMMessage>` 描述符为 `Ljava/util/List;`
+
+### `@Inject` HEAD cancellable 静默拦截
+- void 方法用 `CallbackInfo`，返回值方法用 `CallbackInfoReturnable<T>`
+- 用于维护轮静默：拦截气泡、TTS 等输出通道
 
 ## 测试流程
 

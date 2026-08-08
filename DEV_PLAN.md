@@ -120,30 +120,46 @@
 ### 三、简易记忆系统
 
 - `docs/简易记忆系统模块.md` - 简易记忆系统功能与命令说明
+- `docs/plans/简易记忆系统v2计划.md` - v2 强化计划（M-2.0 ~ M-2.8）
 
 为女仆提供持久化的键值对记忆存储，让女仆能"记住"玩家的偏好、历史事件和个人信息。
 
-**架构**：三层接口 + JSON 持久化
-- Context 层：记忆索引自动注入 AI 上下文（核心记忆全文 + 归档记忆预览）
-- Tool 层：AI 可自主调用 `tlm_memory` 读写遗忘记忆
+**架构**：三层接口 + JSON 持久化 + Mixin 引导注入 + 后台自动整理
+- Context 层：记忆索引自动注入 AI 上下文（核心记忆全文 + 归档记忆预览，支持 keys-only 瘦身）
+- Tool 层：AI 可自主调用 `tlm_memory` 读写遗忘搜索合并记忆
+- Mixin 层：system 消息注入引导（替代 Skill，消除触发悖论）
+- 维护层：阈值触发后台自动整理，全出口静默，history 快照清理
 - 命令层：玩家通过 `/tlmmemory` 管理记忆
-- 持久化：`config/tlm_sincerely/maid_memories/<uuid>.json`
+- 持久化：`config/tlm_sincerely/maid_memories/<uuid>.json`（含 meta.lastTidyAt）
 
 #### 1. AI 上下文注入
 - ✓ 注册 `tlm_sincerely_memory` 分类（promptContext=true）
 - ✓ 核心记忆（≤ 10 条）全文注入，归档记忆仅注入 key + 截断预览
 - ✓ 关闭记忆系统时不注入
+- ✓ `PreviewMode` 支持 `full` / `keys_only` 瘦身模式（M-2.8）
+- ✓ `ShowSource` 可选在预览中显示来源玩家名（M-2.7）
 
 #### 2. AI Tool（`tlm_memory`）
-- ✓ `remember(key, value, importance)` — 写入记忆（重要性 core/archive）
-- ✓ `recall(key)` — 按 key 获取完整记忆值
-- ✓ `forget(key)` — 删除指定记忆
-- ✓ 自动枚举已有 key 供 Tab 补全
+- ✓ `remember(key, value, importance)` - 写入记忆（重要性 core/archive）
+- ✓ `recall(key)` - 按 key 获取完整记忆值（M-2.3: 更新访问统计）
+- ✓ `forget(key)` - 删除指定记忆
+- ✓ `search(query)` - 关键词子串搜索（M-2.1: 匹配 key/value，最多 10 条）
+- ✓ `merge(keys, key, value)` - 合并 2-5 个 archive 条目（M-2.5: core 硬约束保护）
+- ✓ 满容自动淘汰最旧 archive（M-2.2: `AutoEvict` 配置可回退旧拒绝行为）
+- ✓ 维护模式期间 action 收窄（仅 search/recall/merge）
 - ✓ 记忆满时返回容量提示
 
-#### 3. Skill 引导
-- ✓ `memory-guidance` Skill（数据包）— 引导 AI 何时应记录/遗忘记忆
-- ✓ AI 在对话中即时判断重要信息并自主写入
+#### 3. 引导注入（M-2.4: 移除 Skill，改用 Mixin system 注入）
+- ✓ `MemoryGuidanceMixin` 注入引导 system 消息（`@Redirect` on `buildMessage`）
+- ✓ 引导文案作为常量冻结，每请求 O(1) 注入
+- ✓ `summarize` 提示词改为自包含（不再引用 skill）
+
+#### 4. 后台自动整理（M-2.6）
+- ✓ 阈值触发（`TidyThreshold` × `MaxMemories`）+ 冷却（`TidyCooldownMinutes`）
+- ✓ 全出口静默：气泡（`ChatBubbleSilenceMixin`）/ TTS（`TtsSilenceMixin`）/ 聊天栏（`MaidChatBroadcastMixin`）
+- ✓ 维护轮 Tool action 收窄
+- ✓ history 快照清理（维护前后 size 差值 pollLast）
+- ✓ `lastTidyAt` 持久化到 JSON `meta` 对象
 
 #### 4. 命令系统
 - ✓ `/tlmmemory set <名字> <key> <value>` — 设置归档记忆
@@ -162,7 +178,14 @@
 - ✓ `Enabled` — 记忆系统总开关（默认开）
 - ✓ `MaxMemories` — 每只女仆最大记忆数（默认 50，范围 1-200）
 - ✓ `CoreMemoryLimit` — 核心记忆全文注入上限（默认 10，范围 0-50）
-- ✓ `ContextPreviewLength` — 归档记忆截断长度（默认 30，范围 10-200）
+- ✓ `ContextPreviewLength` — 归档记忆截断长度（默认 30，范围 10-200）
+- ✓ `AutoEvict` - 满容自动淘汰（M-2.2, 默认 true）
+- ✓ `MemoryGuidance` - 注入记忆引导（M-2.4, 默认 true）
+- ✓ `TidyEnabled` - 自动整理开关（M-2.6, 默认 true）
+- ✓ `TidyThreshold` - 整理触发阈值（M-2.6, 默认 0.8, 范围 0.5-1.0）
+- ✓ `TidyCooldownMinutes` - 整理冷却（M-2.6, 默认 20, 范围 1-1440）
+- ✓ `ShowSource` - 显示记忆来源（M-2.7, 默认 false）
+- ✓ `PreviewMode` - 预览模式 full/keys_only（M-2.8, 默认 full）
 
 #### 6. 国际化
 - ✓ zh_cn / en_us 完整语言文件
@@ -176,7 +199,10 @@
 - ⚠ 无 GUI 管理界面（计划后续仿照 TaskPriorityScreen 实现）
 - ⚠ 无日记本物品（计划后续作为独立特性）
 - ⚠ 无女仆间记忆共享（属于后续"女仆间交流系统"范畴）
-- ⚠ 记忆对齐 key 查找，不支持自然语言语义搜索
+- ⚠ 记忆搜索为子串匹配，不支持自然语言语义搜索或 embedding
+- ⚠ 后台维护轮的 history 清理基于 size 快照差值，维护期间若有其他来源对话可能误删
+- ⚠ 维护轮静默期间，玩家新对话也会被静默（维护标记按 maid UUID 全局生效）
+- ⚠ MemoryEntry.source 在 Tool 层使用 maid 主人名（非对话发起者），多人共享时不够精确
 
 ---
 

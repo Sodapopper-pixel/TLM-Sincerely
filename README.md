@@ -20,7 +20,7 @@
 | Minecraft | 1.20.1 |
 | Mod Loader | Forge 47.x，开发环境使用 47.4.0 |
 | Java | 17 |
-| Touhou Little Maid | 1.5.1 或更高，开发环境使用 1.5.2 |
+| Touhou Little Maid | 1.5.1 或更高，开发环境使用 1.5.3 |
 | Cloth Config API | 11.x，开发环境使用 11.1.136 |
 
 ## 功能
@@ -103,10 +103,6 @@ build/libs/tlm_sincerely-1.20.1-forge-0.1.0.jar
 
 - [开发状态与规划](DEV_PLAN.md)
 - [开发注意事项](DEVELOPMENT.md)
-- [聊天栏女仆对话模块](docs/聊天栏女仆对话模块.md)
-- [自动切换工作模块](docs/自动切换工作模块.md)
-- [工作模式切换问题排查](docs/工作模式切换问题排查.md)
-- [简易记忆系统模块](docs/简易记忆系统模块.md)
 - [已完成计划归档](docs/plans/)
 
 ## 配置与数据
