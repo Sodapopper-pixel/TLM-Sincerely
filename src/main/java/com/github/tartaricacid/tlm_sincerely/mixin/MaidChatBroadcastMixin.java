@@ -23,7 +23,8 @@ public class MaidChatBroadcastMixin {
             at = @At(
                     value = "INVOKE",
                     target = "Lnet/minecraft/server/level/ServerPlayer;sendSystemMessage(Lnet/minecraft/network/chat/Component;)V"
-            )
+            ),
+            remap = true
     )
     private void redirectMaidReply(ServerPlayer player, Component message) {
         if (MemoryMaintenanceManager.isMaintaining(maid.getUUID())) {

@@ -1,7 +1,8 @@
 package com.github.tartaricacid.tlm_sincerely.priority.decision;
 
 import com.github.tartaricacid.tlm_sincerely.config.subconfig.PriorityConfig;
-import com.github.tartaricacid.tlm_sincerely.priority.TaskPriorityPreset;
+import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkInternalSetTaskGuard;
+import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPreset;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.Availability;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.DetectionResult;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.MaidDetectionCache;
@@ -16,12 +17,26 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Optional;
 
-/** The only component allowed to call EntityMaid.setTask for automatic switching. */
+/**
+ * The only component allowed to call {@code EntityMaid.setTask} for
+ * automatic switching (T-2 B1).
+ *
+ * <p>Reads the per-maid {@link AutoWorkPreset} provided by the handler
+ * and uses its list order as the authoritative priority. Numeric
+ * priority fields are gone; index 0 in {@link AutoWorkPreset#getOrder()}
+ * is the highest priority.
+ *
+ * <p>All {@code setTask} writes are wrapped in
+ * {@link AutoWorkInternalSetTaskGuard} so future external-task
+ * compatibility layers can distinguish internal writes from external
+ * ones without relying on brittle heuristics like "current task is the
+ * virtual auto-switch task" (which we explicitly do not register).
+ */
 public final class TaskSwitchDecisionEngine {
     private static final Logger LOGGER = LoggerFactory.getLogger(TaskSwitchDecisionEngine.class);
     private static final int ATTACK_RELEASE_GRACE_TICKS = 20;
 
-    public boolean handleExperimentalAttackPreempt(EntityMaid maid, TaskPriorityPreset preset,
+    public boolean handleExperimentalAttackPreempt(EntityMaid maid, AutoWorkPreset preset,
                                                     List<ResourceLocation> sortedTasks,
                                                     MaidDetectionCache cache, MaidSwitchState state,
                                                     long currentTick) {
@@ -64,7 +79,7 @@ public final class TaskSwitchDecisionEngine {
         return true;
     }
 
-    public void evaluateNormalSwitch(EntityMaid maid, TaskPriorityPreset preset,
+    public void evaluateNormalSwitch(EntityMaid maid, AutoWorkPreset preset,
                                      List<ResourceLocation> sortedTasks, MaidDetectionCache cache,
                                      MaidSwitchState state, long currentTick) {
         if (!state.canSwitchNormally(currentTick, PriorityConfig.MINIMUM_TASK_HOLD_TICKS.get())) {
@@ -79,13 +94,23 @@ public final class TaskSwitchDecisionEngine {
         if (candidate.get().uid().equals(currentUid)) {
             return;
         }
-        boolean currentConfigured = preset.hasTask(currentUid);
+        // "Current real task in this maid's preset" is the key safety
+        // boundary. If the current task is not in the preset, we
+        // deliberately do not treat it as "configured" and fall through
+        // to a guarded switch — but the candidate has already been
+        // filtered through the preset, so the switch is always into a
+        // configured task that has reached its confirmation threshold.
+        boolean currentConfigured = preset != null && preset.hasTask(currentUid);
         DetectionResult currentResult = cache.getFresh(currentUid, currentTick);
         if (currentConfigured && currentResult.availability() == Availability.AVAILABLE
                 && !isHigherPriority(candidate.get().uid(), currentUid, sortedTasks)) {
             LOGGER.debug("[TaskDecision] maid={} keep={} reason=CURRENT_AVAILABLE", maid.getUUID(), currentUid);
             return;
         }
+        // UNKNOWN never causes a switch: it is only safe to stay or to
+        // upgrade when the current task is demonstrably worse than the
+        // candidate. Keeping the current task while UNKNOWN is the
+        // conservative default documented in the design notes.
         if (currentConfigured && currentResult.availability() == Availability.UNKNOWN) {
             return;
         }
@@ -170,10 +195,14 @@ public final class TaskSwitchDecisionEngine {
         if (currentUid.equals(targetTask.getUid())) {
             return;
         }
-        maid.setTask(targetTask);
+        // Wrap the setTask call in the internal marker so future
+        // external-task compatibility layers can recognise our write.
+        // The guard is cleared in a finally-equivalent by the helper.
+        ResourceLocation targetUid = targetTask.getUid();
+        AutoWorkInternalSetTaskGuard.runInternal(maid.getUUID(), targetUid, () -> maid.setTask(targetTask));
         state.recordSwitch(currentTick);
         LOGGER.debug("[TaskDecision] maid={} current={} selected={} reason={}", maid.getUUID(),
-                currentUid, targetTask.getUid(), reason);
+                currentUid, targetUid, reason);
     }
 
     private record SwitchCandidate(ResourceLocation uid, IMaidTask task, java.util.UUID targetUuid) {

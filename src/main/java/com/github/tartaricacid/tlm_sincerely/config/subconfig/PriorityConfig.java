@@ -16,8 +16,11 @@ public final class PriorityConfig {
     public static void init(ForgeConfigSpec.Builder builder) {
         builder.push("multi_task");
 
-        builder.comment("Enable multi-task mode for maids");
-        ENABLED = builder.define("Enabled", false);
+        builder.comment(
+                "Global switch for the auto work switch (auto task switching) feature. Enabled by default.",
+                "Disabling it only pauses automatic scheduling — real tasks (the maid's current Task) and",
+                "per-maid detection state / scan cursors are preserved, so re-enabling resumes where it left off.");
+        ENABLED = builder.define("Enabled", true);
 
         builder.comment("Polling interval in ticks for task switching (20 ticks = 1 second)");
         COOLDOWN = builder.defineInRange("PollInterval", 100, 20, 6000);

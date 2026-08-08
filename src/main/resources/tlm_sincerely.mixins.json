@@ -11,7 +11,8 @@
         "TtsSilenceMixin"
     ],
     "client": [
-        "MaidSideTabsMixin"
+        "AbstractMaidContainerGuiMixin",
+        "MaidTabsMixin"
     ],
     "injectors": {
         "defaultRequire": 1

@@ -9,17 +9,23 @@ src/main/java/com/github/tartaricacid/tlm_sincerely/
 ├── chatbar/
 │   ├── ChatBarHandler.java       # 聊天栏事件与前缀解析
 │   └── MaidFinder.java           # 女仆查找逻辑
+├── client/
+│   ├── gui/autowork/             # 自动工作 GUI：独立配置 Screen、棕色按钮、底部开关
+│   └── network/ClientAutoWorkService.java  # S2C 快照客户端缓存
 ├── command/
 │   ├── ChatCommand.java          # 对话命令
 │   ├── MemoryCommand.java        # 记忆管理命令
 │   └── UnicodeWordArgument.java  # 中文参数支持
 ├── memory/                       # 女仆记忆持久化
-└── priority/                     # 多工作检测、缓存与切换决策
+├── mixin/                        # Mixin（客户端 + 通用）
+└── priority/
+    ├── autowork/                  # 自动工作模式：状态/预设/网络/菜单/检测/决策
+    └── detection/                 # 通用任务检测（农耕/甘蔗/攻击）
 src/main/resources/
 ├── META-INF/mods.toml           # 模组元数据
 ├── assets/tlm_sincerely/lang/   # 国际化文件
 ├── pack.mcmeta                  # 资源包元数据
-└── data/touhou_little_maid/      # 主模组 Skill 数据
+└── tlm_sincerely.mixins.json   # Mixin 配置
 ```
 
 ---
@@ -180,11 +186,11 @@ Mixin 0.8.5 最大支持 `JAVA_13`，不能写 `JAVA_17`。写错会导致 Mixin
 - `@Inject(method = "...", remap = false)` — 不加会编译失败：`Unable to locate obfuscation mapping`
 - `@Accessor` 也不需要特殊处理（自定义字段名不会被 remap）
 
-### @Redirect target 与 Forge 方法
-`ServerPlayer.sendSystemMessage(Component)` 是 **Forge 打补丁添加的便捷方法**，不是原版方法。
-- 原版方法是 `displayClientMessage(Component, boolean)`（SRG: `m_213846_`）
-- 如果 `@Redirect` 不加 `remap = false`，refmap 会错误映射到原版方法（参数数量不匹配），导致注入永远不命中
-- **解决方案**：对 Forge 添加的方法使用 `@Redirect(remap = false)`
+### `@Redirect` target 引用原版方法时的 remap
+`ServerPlayer.sendSystemMessage(Component)` 是**原版方法**（SRG: `m_213846_`），不是 Forge 补丁方法。
+- **关键**：mixin 到主模组类时 `@Mixin(remap = false)` 会使类内**所有**注入默认不 remap，包括 `@At` target 中的原版方法引用
+- 若 target 引用原版方法但 remap=false，refmap 不生成映射条目 -> 生产 jar 中字节码是 SRG 名（`m_213846_`），target 仍是 MCP 名（`sendSystemMessage`）-> **注入不命中 -> 启动崩溃**
+- **解决方案**：对 target 引用原版方法的注入，显式设 `@Redirect(remap = true)` 覆盖 `@Mixin(remap = false)`，让 AP 仅为该注入生成 refmap 条目（已验证：mod 类方法名不会被误映射，AP 自动跳过无 SRG 条目的方法）
 
 ### mixingradle refmap 路径
 - 生成位置：`build/tmp/compileJava/compileJava-refmap.json`
@@ -199,7 +205,8 @@ Mixin 0.8.5 最大支持 `JAVA_13`，不能写 `JAVA_17`。写错会导致 Mixin
 ### Mixin 到主模组（TLM）自定义类时的 remap 处理
 - **现象**：mixin 到 TLM 的类（如 `MaidAIChatManager`、`ChatBubbleManager`）时，注入的方法名在 refmap 中找不到映射
 - **解决**：在 `@Mixin` 注解上设 `remap = false`（使类内所有注入默认不 remap）
-- **注意**：原版类引用的混淆由 Forge reobf 处理，不受 mixin remap 影响
+- **例外**：若注入的 `@At` target 引用**原版 Minecraft 方法**（如 `ServerPlayer.sendSystemMessage`），需在该注入上显式设 `remap = true`，否则生产 jar 中 target 不命中 -> 启动崩溃（详见上一节）
+- **判断规则**：target 引用 mod 类方法 -> remap=false 安全；target 引用 Minecraft 类方法 -> 必须 remap=true
 
 ### javap 输出换行截断导致方法签名误读
 - **现象**：`javap -p` 输出跨行截断，长参数列表易误读参数个数
@@ -213,6 +220,61 @@ Mixin 0.8.5 最大支持 `JAVA_13`，不能写 `JAVA_17`。写错会导致 Mixin
 ### `@Inject` HEAD cancellable 静默拦截
 - void 方法用 `CallbackInfo`，返回值方法用 `CallbackInfoReturnable<T>`
 - 用于维护轮静默：拦截气泡、TTS 等输出通道
+
+### 跨 GUI 注入 widget（T-2 修正）
+ - TLM 的 `MaidContainerGuiEvent.Init.addButton(String, AbstractWidget)` 是安全的 widget 注入点，无需反射 `addRenderableWidget`
+ - **旧方案**曾用 `@Invoker` 或反射注入到 `addTaskListButton`，但会在 `initBaseWidgets` 之前执行，导致 `scheduleButton` 未初始化时 `renderTooltip` 触发 NPE
+ - 结论：凡是在女仆 GUI 中追加 widget，一律使用 `MaidContainerGuiEvent.Init` 事件，不要在 `addTaskListButton` 的 HEAD mixin 中操作
+
+### MaidContainerGuiEvent 触发时机（T-2 修正）
+ - TLM 在 `initBaseWidgets()` **之后** post `MaidContainerGuiEvent.Init`，此时 `scheduleButton` 等基础 widget 已就绪
+ - Init 事件的 `addButton` 会被 TLM 自动 `addRenderableWidget`
+ - 如果在 `addTaskListButton` 的 HEAD mixin 里添加 widget，会先于 `scheduleButton` 创建，导致渲染 NPE
+
+### Screen.getFocused / setFocused 实际所在类（补充）
+ - `javap -p Screen` 看不到 `getFocused` / `setFocused`，实际定义在父类 `AbstractContainerEventHandler`
+ - SRG 名 `m_7222_` / `m_7522_`，编译时正常解析；MCP 映射在 decompile jar 中可能被裁剪
+ - 调用方式：`Screen.getFocused()` 返回 `GuiEventListener`，`Screen.setFocused(GuiEventListener)` 设置焦点
+
+### 接口 Mixin 在 Mixin 0.8.5 中不受支持
+ - **现象**：`@Mixin(ContainerEventHandler.class)` + `@Inject(method = "charTyped")` 在 compileJava 时报 `Injector in interface is unsupported`
+ - **根因**：Mixin 0.8.5 的注解处理器不支持在接口 Mixin 中注入处理器（仅支持类 Mixin）
+ - **解决**：改用 Forge `ScreenEvent.CharacterTyped.Pre` 客户端事件，在事件处理器中检查屏幕类型并转发字符输入
+
+### 颜色 ARGB 格式
+ - `GuiGraphics.drawString` 的颜色参数是完整的 ARGB 格式
+ - `0x3380FF` 是半透明蓝色（alpha=0x33），`0xFF3380FF` 才是不透明蓝色
+ - `0xFF5555` 是半透明红色，`0xFFFF5555` 才是不透明红色
+ - 结论：GUI 文本颜色必须使用 `0xFF` 开头的完整 ARGB，否则字体透明不可见
+
+### TLM 顶部 Tab 扩展路线
+ - 顶部水平 Tab 由 `MaidTabs#getTabs(AbstractMaidContainerGui)` 返回 `MaidTabButton[]` 数组
+ - 通过 Mixin `@Inject(method = "getTabs", at = @At("RETURN"), cancellable = true, remap = false)` 追加新 Tab
+ - 已用槽位：0:107(MAIN)、1:132(TASK_CONFIG)、2:157(MAID_CONFIG)；第 4 槽用 u=182
+ - 按钮构造：`MaidTabButton(x, y, left, String key, OnPress)`，tooltip 自动取 `gui.touhou_little_maid.button.<key>` / `<key>.desc`
+ - 独立配置页面应继承 `AbstractMaidContainerGui`，不应继承 `MaidTaskConfigGui`（否则 TLM 会同时高亮两个 Tab）
+
+### 独立菜单 MenuType 注册范式（参照 maid_useful_task）
+ - 服务端：`DeferredRegister<MenuType<?>>` + `IForgeMenuType.create((wid, inv, buf) -> new Container(wid, inv, buf.readInt()))`
+ - 客户端：`FMLClientSetupEvent.enqueueWork(() -> MenuScreens.register(menuType, Screen::new))`
+ - 开屏：`NetworkHooks.openScreen(serverPlayer, MenuProvider, buf -> buf.writeInt(entityId))`
+ - 容器：继承 `TaskConfigContainer` 可自动获取物品栏槽位、owner 校验等基础功能
+
+### getXSize() ≠ 任务配置内容区宽度
+ - TLM 女仆 GUI 总宽 `imageWidth = 256`（`getXSize()` 返回）
+ - 右侧任务配置内容区固定为 `176 × 137`，起始于 `leftPos + 80, topPos + 28`
+ - 若用 `getXSize()` 作为覆盖层宽度，会越出女仆 GUI 边界
+ - 结论：覆盖层/独立配置页必须硬编码 `176 × 137`
+
+### TLM Tooltip 渲染的 scheduleButton 空指针
+ - `AbstractMaidContainerGui.renderTooltip` 无条件访问 `scheduleButton.isHovered()`
+ - 若在 GUI 重建过程中有帧渲染到此方法，`scheduleButton` 尚未初始化会触发 NPE
+ - 解决：在 `AbstractMaidContainerGuiMixin` 中对 `renderTooltip` HEAD 注入空值保护
+
+### FMLCommonSetupEvent 必须注册到 mod event bus
+ - `SincerelyExtension` 构造器中的 `MinecraftForge.EVENT_BUS` 是 Forge 事件总线，不会收到 `FMLCommonSetupEvent`
+ - 必须显式 `FMLJavaModLoadingContext.get().getModEventBus().addListener(this::onCommonSetup)`
+ - 否则 `AutoWorkNetworking.register()` 永远不执行，channel 为 null
 
 ## 测试流程
 
