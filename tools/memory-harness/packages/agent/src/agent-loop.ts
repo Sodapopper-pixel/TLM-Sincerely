@@ -2,6 +2,16 @@ import type { LLMMessage, LLMTransport, ToolCall, ToolSchema } from "./types.js"
 import { buildContextBlock, buildUserMessage } from "./context-builder.js";
 import type { ToolContext, ToolRegistry, ToolResult, MemoryDiff } from "./tool-registry.js";
 
+// Mirrors `MemoryGuidanceMixin.GUIDANCE_TEXT` (M-2.4): injected as a system
+// message between setting and summary when config.memoryGuidance is on.
+export const GUIDANCE_TEXT = `## Memory Guidelines
+You have persistent memory, listed under "Maid persistent memories" in context. Manage it with the tlm_memory tool.
+Call remember when: the player explicitly asks you to remember; the player states a lasting preference, personal fact, or preferred form of address; a significant event occurs (gift, promise, milestone).
+Do NOT remember: small talk, weather, transient game state, anything not said to you directly, anything already available via query_game_context.
+Key: short semantic English snake_case (e.g. player_hobby). Value: one concise sentence with context (who/what/when). Importance: core = explicitly requested or relationship-defining; archive = contextual details.
+Forget only when the player explicitly asks. Capacity is limited; when full, the oldest archive entry is evicted automatically.
+Use search to find old memories, recall to read full detail.`;
+
 export interface AgentLoopConfig {
   maxToolTurns: number;
   maxRepeatBatch: number;
@@ -12,7 +22,11 @@ export interface AgentLoopConfig {
 export const DEFAULT_LOOP_CONFIG: AgentLoopConfig = {
   maxToolTurns: 16,
   maxRepeatBatch: 2,
-  historyLimit: 24,
+  // Mirrors main mod `MaidAIChatData` history = `new CappedQueue<>(512)` (hardcoded
+  // literal in 1.5.3 ctor; NOT a config). Eviction is oldest-first (pollLast).
+  // Token-based summary compression (MAID_HISTORY_COMPRESS_TOKEN_LIMIT, default 48K)
+  // is a separate main-mod mechanism the harness does not replicate.
+  historyLimit: 512,
   temperature: 0,
 };
 
@@ -131,10 +145,19 @@ export async function runAgentLoop(
   };
   deps.emit({ type: "context", context: buildContextBlock(maid, memory, config) });
 
-  const messages: LLMMessage[] =
-    deps.systemPrompt.trim() !== ""
-      ? [{ role: "system", content: deps.systemPrompt }, ...history, userMessage]
-      : [...history, userMessage];
+  // Message order mirrors main mod buildMessage + MemoryGuidanceMixin (M-2.4):
+  // [setting?][guidance?][history][user+context]. Guidance is injected as a
+  // system message when config.enabled && config.memoryGuidance (replaces the
+  // removed memory-guidance skill, eliminating the trigger paradox).
+  const injectGuidance = config.enabled && config.memoryGuidance;
+  const prefix: LLMMessage[] = [];
+  if (deps.systemPrompt.trim() !== "") {
+    prefix.push({ role: "system", content: deps.systemPrompt });
+  }
+  if (injectGuidance) {
+    prefix.push({ role: "system", content: GUIDANCE_TEXT });
+  }
+  const messages: LLMMessage[] = [...prefix, ...history, userMessage];
   const toolLogs: ToolLogEntry[] = [];
   const tools: ToolSchema[] = deps.registry.schemas();
   let promptTokens = 0;
@@ -198,7 +221,7 @@ export async function runAgentLoop(
     }
   }
 
-  const userIdx = (deps.systemPrompt.trim() !== "" ? 1 : 0) + history.length;
+  const userIdx = prefix.length + history.length;
   const turnsAfter = messages.slice(userIdx + 1);
   const newHistoryEntries: LLMMessage[] = [{ role: "user", content: userText }, ...turnsAfter];
 

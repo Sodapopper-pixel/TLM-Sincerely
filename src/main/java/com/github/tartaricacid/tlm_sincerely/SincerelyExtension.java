@@ -8,6 +8,7 @@ import com.github.tartaricacid.tlm_sincerely.command.ChatCommand;
 import com.github.tartaricacid.tlm_sincerely.command.MemoryCommand;
 import com.github.tartaricacid.tlm_sincerely.command.UnicodeWordArgument;
 import com.github.tartaricacid.tlm_sincerely.config.GeneralConfig;
+import com.github.tartaricacid.tlm_sincerely.memory.MemoryMaintenanceManager;
 import com.github.tartaricacid.touhoulittlemaid.ai.agent.context.GameContextRegister;
 import com.github.tartaricacid.touhoulittlemaid.ai.agent.tool.ToolRegister;
 import com.github.tartaricacid.touhoulittlemaid.api.ILittleMaid;
@@ -16,6 +17,7 @@ import net.minecraft.commands.synchronization.ArgumentTypeInfos;
 import net.minecraft.commands.synchronization.SingletonArgumentInfo;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
@@ -67,5 +69,12 @@ public class SincerelyExtension implements ILittleMaid {
     public void onRegisterCommands(RegisterCommandsEvent event) {
         ChatCommand.register(event.getDispatcher());
         MemoryCommand.register(event.getDispatcher());
+    }
+
+    @SubscribeEvent
+    public void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase == TickEvent.Phase.END) {
+            MemoryMaintenanceManager.onServerTick(event.getServer());
+        }
     }
 }

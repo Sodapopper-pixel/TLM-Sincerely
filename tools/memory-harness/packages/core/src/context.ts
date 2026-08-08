@@ -10,5 +10,10 @@ export function memoryContextValue(memory: MaidMemory, config: MemoryConfig): st
   if (memory.isEmpty()) {
     return "None";
   }
-  return memory.generateContextPreview(config.coreLimit, config.contextPreviewLength);
+  return memory.generateContextPreview(
+    config.coreLimit,
+    config.contextPreviewLength,
+    config.previewMode,
+    config.showSource,
+  );
 }

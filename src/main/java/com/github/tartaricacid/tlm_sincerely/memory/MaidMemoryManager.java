@@ -48,10 +48,18 @@ public final class MaidMemoryManager {
                     String importance = item.has("importance") ? item.get("importance").getAsString() : MemoryEntry.ARCHIVE;
                     long createdAt = item.has("createdAt") ? item.get("createdAt").getAsLong() : 0;
                     long updatedAt = item.has("updatedAt") ? item.get("updatedAt").getAsLong() : 0;
+                    long lastAccessedAt = item.has("lastAccessedAt") ? item.get("lastAccessedAt").getAsLong() : 0;
+                    int accessCount = item.has("accessCount") ? item.get("accessCount").getAsInt() : 0;
+                    String source = item.has("source") ? item.get("source").getAsString() : "";
 
                     memory.getMemories().put(entry.getKey(),
-                            new MemoryEntry(value, importance, createdAt, updatedAt));
+                            new MemoryEntry(value, importance, createdAt, updatedAt, lastAccessedAt, accessCount, source));
                 }
+            }
+
+            if (root.has("meta")) {
+                JsonObject metaObj = root.getAsJsonObject("meta");
+                memory.setLastTidyAt(metaObj.has("lastTidyAt") ? metaObj.get("lastTidyAt").getAsLong() : 0);
             }
 
             return memory;
@@ -78,10 +86,17 @@ public final class MaidMemoryManager {
                 item.addProperty("importance", mem.importance());
                 item.addProperty("createdAt", mem.createdAt());
                 item.addProperty("updatedAt", mem.updatedAt());
+                item.addProperty("lastAccessedAt", mem.lastAccessedAt());
+                item.addProperty("accessCount", mem.accessCount());
+                item.addProperty("source", mem.source());
                 memObj.add(entry.getKey(), item);
             }
 
             root.add("memories", memObj);
+
+            JsonObject metaObj = new JsonObject();
+            metaObj.addProperty("lastTidyAt", memory.getLastTidyAt());
+            root.add("meta", metaObj);
 
             File file = getFile(dir, maidUuid);
             FileUtils.writeStringToFile(file, GSON.toJson(root), StandardCharsets.UTF_8);

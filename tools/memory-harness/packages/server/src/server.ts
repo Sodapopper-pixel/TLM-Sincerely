@@ -21,7 +21,7 @@ import { resolve, sep } from "node:path";
 import { loadSkills, SessionManager, type Session } from "./session.js";
 
 const SUMMARIZE_PROMPT =
-  "Please review our conversation so far and use tlm_memory remember to record any important information you may have missed. Use the memory-guidance skill to decide what is worth remembering.";
+  "Please review our conversation so far and use tlm_memory remember to record anything you missed: things the player asked you to remember, lasting preferences, personal facts, significant events. Use short semantic English keys and one concise sentence with context. Do not record small talk or transient game state.";
 
 export interface ServerOptions {
   dataDir: string;
@@ -200,6 +200,7 @@ export function createHarnessServer(options: ServerOptions): HarnessServer {
       config: session.config,
       maid: session.maid,
       skills: session.skills,
+      maintaining: false,
       save: () => manager.saveMemory(session),
     };
     const transport = options.transportFactory ? options.transportFactory(session) : defaultTransport(session, options.recordingsDir);

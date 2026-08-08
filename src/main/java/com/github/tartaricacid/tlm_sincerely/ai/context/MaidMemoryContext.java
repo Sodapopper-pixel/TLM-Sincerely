@@ -24,7 +24,9 @@ public class MaidMemoryContext extends AbstractMaidContext {
 
         return memory.generateContextPreview(
                 MemoryConfig.CORE_LIMIT.get(),
-                MemoryConfig.CONTEXT_PREVIEW_LENGTH.get()
+                MemoryConfig.CONTEXT_PREVIEW_LENGTH.get(),
+                MemoryConfig.PREVIEW_MODE.get(),
+                MemoryConfig.SHOW_SOURCE.get()
         );
     }
 }

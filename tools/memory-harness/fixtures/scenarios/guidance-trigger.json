@@ -1,6 +1,6 @@
 {
-  "id": "skill-trigger",
-  "intent": "remember-type instruction triggers use_skill(memory-guidance) then remember",
+  "id": "guidance-trigger",
+  "intent": "guidance system message (M-2.4) lets the maid remember directly without loading a skill",
   "env": {},
   "initialMemory": [],
   "opening": "I want you to remember things about me properly. My name is Alice.",
@@ -11,28 +11,16 @@
           "id": "c1",
           "type": "function",
           "function": {
-            "name": "use_skill",
-            "arguments": "{\"name\":\"memory-guidance\"}"
-          }
-        }
-      ]
-    },
-    {
-      "tool_calls": [
-        {
-          "id": "c2",
-          "type": "function",
-          "function": {
             "name": "tlm_memory",
             "arguments": "{\"action\":\"remember\",\"key\":\"player_name\",\"value\":\"Alice\",\"importance\":\"core\"}"
           }
         }
       ]
     },
-    { "content": "Understood. I've loaded the memory guidance and remembered that your name is Alice." }
+    { "content": "Understood. I've remembered that your name is Alice." }
   ],
   "assertions": {
-    "toolCalls": ["use_skill", "tlm_memory"],
+    "toolCalls": ["tlm_memory"],
     "memoryHas": { "player_name": "Alice" }
   }
 }

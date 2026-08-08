@@ -27,12 +27,18 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 public final class MemoryCommand {
     private static final String DEFAULT_LANGUAGE = "en_us";
     private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
+    private static final String SUMMARIZE_PROMPT = """
+            Please review our conversation so far and use tlm_memory remember \
+            to record anything you missed: things the player asked you to remember, \
+            lasting preferences, personal facts, significant events. \
+            Use short semantic English keys and one concise sentence with context. \
+            Do not record small talk or transient game state.""";
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("tlmmemory")
@@ -130,7 +136,7 @@ public final class MemoryCommand {
             return 0;
         }
 
-        memory.set(key, value, importance);
+        memory.set(key, value, importance, player.getName().getString());
         MaidMemoryManager.save(maid.getUUID(), memory);
 
         String maidName = maid.getName().getString();
@@ -179,6 +185,19 @@ public final class MemoryCommand {
                         .withStyle(ChatFormatting.GRAY));
         player.sendSystemMessage(metaLine);
 
+        MutableComponent statsLine = Component.literal("  ")
+                .append(Component.literal("accessed: " + mem.accessCount() + " times").withStyle(ChatFormatting.GRAY))
+                .append(Component.literal("  |  ").withStyle(ChatFormatting.DARK_GRAY))
+                .append(Component.literal("last access: " + (mem.lastAccessedAt() > 0
+                        ? DATE_FORMAT.format(new Date(mem.lastAccessedAt())) : "never")).withStyle(ChatFormatting.GRAY));
+        player.sendSystemMessage(statsLine);
+
+        if (MemoryConfig.SHOW_SOURCE.get() && !mem.source().isEmpty()) {
+            MutableComponent sourceLine = Component.literal("  ")
+                    .append(Component.literal("source: " + mem.source()).withStyle(ChatFormatting.GRAY));
+            player.sendSystemMessage(sourceLine);
+        }
+
         return Command.SINGLE_SUCCESS;
     }
 
@@ -205,6 +224,7 @@ public final class MemoryCommand {
         player.sendSystemMessage(Component.literal("=== " + maidName + " (" + memory.size() + " memories) ===")
                 .withStyle(ChatFormatting.GOLD));
 
+        boolean showSource = MemoryConfig.SHOW_SOURCE.get();
         for (Map.Entry<String, MemoryEntry> entry : memory.getMemories().entrySet()) {
             MemoryEntry mem = entry.getValue();
             String tag = MemoryEntry.CORE.equals(mem.importance()) ? "★" : "·";
@@ -216,6 +236,10 @@ public final class MemoryCommand {
                     .append(Component.literal(entry.getKey()).withStyle(ChatFormatting.AQUA))
                     .append(Component.literal(": ").withStyle(ChatFormatting.GRAY))
                     .append(Component.literal(preview).withStyle(ChatFormatting.WHITE));
+
+            if (showSource && !mem.source().isEmpty()) {
+                line.append(Component.literal(" (" + mem.source() + ")").withStyle(ChatFormatting.DARK_GRAY));
+            }
 
             player.sendSystemMessage(line);
         }
@@ -317,7 +341,9 @@ public final class MemoryCommand {
     private static String exportContext(MaidMemory memory) {
         return memory.generateContextPreview(
                 MemoryConfig.CORE_LIMIT.get(),
-                MemoryConfig.CONTEXT_PREVIEW_LENGTH.get()
+                MemoryConfig.CONTEXT_PREVIEW_LENGTH.get(),
+                MemoryConfig.PREVIEW_MODE.get(),
+                MemoryConfig.SHOW_SOURCE.get()
         );
     }
 
@@ -344,11 +370,7 @@ public final class MemoryCommand {
             language = DEFAULT_LANGUAGE;
         }
         ChatClientInfo clientInfo = new ChatClientInfo(language, maidName, List.of());
-        maid.getAiChatManager().chat(
-                "Please review our conversation so far and use tlm_memory remember "
-                        + "to record any important information you may have missed. "
-                        + "Use the memory-guidance skill to decide what is worth remembering.",
-                clientInfo, player);
+        maid.getAiChatManager().chat(SUMMARIZE_PROMPT, clientInfo, player);
 
         player.sendSystemMessage(Component.translatable(
                 "command.tlm_sincerely.memory.summarize_sent", maidName)

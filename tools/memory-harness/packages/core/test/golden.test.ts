@@ -13,7 +13,7 @@ function readText(p: string): string {
 }
 
 function entry(value: string, importance: "core" | "archive"): MemoryEntry {
-  return { value, importance, createdAt: 0, updatedAt: 0 };
+  return { value, importance, createdAt: 0, updatedAt: 0, lastAccessedAt: 0, accessCount: 0, source: "" };
 }
 
 describe("golden / preview", () => {

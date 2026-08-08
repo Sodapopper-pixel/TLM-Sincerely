@@ -14,6 +14,7 @@ export interface ToolContext {
   config: MemoryConfig;
   maid: VirtualMaid;
   skills: SkillInstance[];
+  maintaining: boolean;
   save: () => void;
 }
 

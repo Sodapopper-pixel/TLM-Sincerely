@@ -29,6 +29,7 @@ function makeCtx(memory: MaidMemory): ToolContext {
     config: { ...DEFAULT_MEMORY_CONFIG },
     maid: { ...DEFAULT_MAID },
     skills: [parseSkill(SKILL_MD)!],
+    maintaining: false,
     save: () => {},
   };
 }

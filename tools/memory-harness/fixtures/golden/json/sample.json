@@ -4,13 +4,22 @@
       "value": "Reimu",
       "importance": "core",
       "createdAt": 0,
-      "updatedAt": 0
+      "updatedAt": 0,
+      "lastAccessedAt": 0,
+      "accessCount": 0,
+      "source": ""
     },
     "todo": {
       "value": "buy mushrooms",
       "importance": "archive",
       "createdAt": 0,
-      "updatedAt": 0
+      "updatedAt": 0,
+      "lastAccessedAt": 0,
+      "accessCount": 0,
+      "source": ""
     }
+  },
+  "meta": {
+    "lastTidyAt": 0
   }
 }

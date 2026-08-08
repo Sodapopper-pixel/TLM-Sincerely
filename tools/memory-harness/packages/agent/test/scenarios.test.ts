@@ -63,6 +63,7 @@ describe("scenario regression (offline, scripted recordings)", () => {
         config: { ...DEFAULT_MEMORY_CONFIG },
         maid,
         skills: [],
+        maintaining: false,
         save: () => {},
       };
       const deps = {

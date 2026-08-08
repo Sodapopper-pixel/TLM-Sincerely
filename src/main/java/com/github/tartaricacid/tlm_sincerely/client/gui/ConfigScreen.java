@@ -193,6 +193,72 @@ public final class ConfigScreen {
                 .setSaveConsumer(MemoryConfig.CONTEXT_PREVIEW_LENGTH::set)
                 .build());
 
+        memory.addEntry(entryBuilder.startBooleanToggle(
+                        Component.translatable("config.tlm_sincerely.memory.auto_evict"),
+                        MemoryConfig.AUTO_EVICT.get())
+                .setDefaultValue(true)
+                .setTooltip(Component.translatable("config.tlm_sincerely.memory.auto_evict.tooltip"))
+                .setSaveConsumer(MemoryConfig.AUTO_EVICT::set)
+                .build());
+
+        memory.addEntry(entryBuilder.startBooleanToggle(
+                        Component.translatable("config.tlm_sincerely.memory.guidance"),
+                        MemoryConfig.MEMORY_GUIDANCE.get())
+                .setDefaultValue(true)
+                .setTooltip(Component.translatable("config.tlm_sincerely.memory.guidance.tooltip"))
+                .setSaveConsumer(MemoryConfig.MEMORY_GUIDANCE::set)
+                .build());
+
+        memory.addEntry(entryBuilder.startBooleanToggle(
+                        Component.translatable("config.tlm_sincerely.memory.tidy_enabled"),
+                        MemoryConfig.TIDY_ENABLED.get())
+                .setDefaultValue(true)
+                .setTooltip(Component.translatable("config.tlm_sincerely.memory.tidy_enabled.tooltip"))
+                .setSaveConsumer(MemoryConfig.TIDY_ENABLED::set)
+                .build());
+
+        memory.addEntry(entryBuilder.startDoubleField(
+                        Component.translatable("config.tlm_sincerely.memory.tidy_threshold"),
+                        MemoryConfig.TIDY_THRESHOLD.get())
+                .setDefaultValue(0.8)
+                .setMin(0.5)
+                .setMax(1.0)
+                .setTooltip(Component.translatable("config.tlm_sincerely.memory.tidy_threshold.tooltip"))
+                .setSaveConsumer(MemoryConfig.TIDY_THRESHOLD::set)
+                .build());
+
+        memory.addEntry(entryBuilder.startIntField(
+                        Component.translatable("config.tlm_sincerely.memory.tidy_cooldown"),
+                        MemoryConfig.TIDY_COOLDOWN_MINUTES.get())
+                .setDefaultValue(20)
+                .setMin(1)
+                .setMax(1440)
+                .setTooltip(Component.translatable("config.tlm_sincerely.memory.tidy_cooldown.tooltip"))
+                .setSaveConsumer(MemoryConfig.TIDY_COOLDOWN_MINUTES::set)
+                .build());
+
+        memory.addEntry(entryBuilder.startBooleanToggle(
+                        Component.translatable("config.tlm_sincerely.memory.show_source"),
+                        MemoryConfig.SHOW_SOURCE.get())
+                .setDefaultValue(false)
+                .setTooltip(Component.translatable("config.tlm_sincerely.memory.show_source.tooltip"))
+                .setSaveConsumer(MemoryConfig.SHOW_SOURCE::set)
+                .build());
+
+        memory.addEntry(entryBuilder.startStrField(
+                        Component.translatable("config.tlm_sincerely.memory.preview_mode"),
+                        MemoryConfig.PREVIEW_MODE.get())
+                .setDefaultValue("full")
+                .setTooltip(Component.translatable("config.tlm_sincerely.memory.preview_mode.tooltip"))
+                .setSaveConsumer(v -> {
+                    if ("full".equals(v) || "keys_only".equals(v)) {
+                        MemoryConfig.PREVIEW_MODE.set(v);
+                    } else {
+                        MemoryConfig.PREVIEW_MODE.set("full");
+                    }
+                })
+                .build());
+
         return builder;
     }
 
