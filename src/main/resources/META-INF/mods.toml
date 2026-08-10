@@ -5,7 +5,7 @@ license = "${mod_license}"
 [[mods]]
 modId = "tlm_sincerely"
 version = "${mod_version}"
-displayName = "车万女仆：真心为你"
+displayName = "TLM-Sincerely"
 authors = "${mod_authors}"
 description = '''东方小女仆附属模组 - 人格增强、工作优先与长期记忆系统'''
 

@@ -1,6 +1,7 @@
 package com.github.tartaricacid.tlm_sincerely.priority.autowork.network;
 
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.AutoWorkSnapshotS2CPacket;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.PacketDistributor;
 
@@ -29,5 +30,15 @@ public final class AutoWorkServerHandler {
                 PacketDistributor.PLAYER.with(() -> player),
                 new AutoWorkSnapshotS2CPacket(snapshot)
         );
+    }
+
+    /** Sends fresh preset/state snapshots to every connected player. */
+    public static void broadcastSnapshots(MinecraftServer server) {
+        if (server == null) {
+            return;
+        }
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            sendSnapshot(player);
+        }
     }
 }

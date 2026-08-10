@@ -1,6 +1,7 @@
 package com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets;
 
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkStateService;
+import com.github.tartaricacid.tlm_sincerely.priority.TaskAutoSwitchHandler;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkPermission;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkServerHandler;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
@@ -57,6 +58,10 @@ public final class SetMaidAutoWorkC2SPacket {
                 return;
             }
             stateService.setEnabled(maid, msg.enabled);
+            if (msg.enabled) {
+                TaskAutoSwitchHandler.requestImmediateEvaluation(maid, "PLAYER_ENABLE");
+            }
+            LOGGER.debug("[AutoWork] SetMaidAutoWork maid={} enabled={}", maid.getUUID(), msg.enabled);
             AutoWorkServerHandler.sendSnapshot(sender);
         });
         ctx.get().setPacketHandled(true);

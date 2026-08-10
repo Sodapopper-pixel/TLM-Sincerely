@@ -1,12 +1,30 @@
-.gradle/
-build/
-run/
-wiki-reference/
-libs/
+/.gradle/
+/build/
+/run/
+/libs/
+/logs/
 *.log
 *.jar
 !gradle/wrapper/*.jar
-.kilo/node_modules/
-.nexus-map/raw
-logs/
-bin/test/
+
+# Generated IDE/Kilo state
+/.kilo/node_modules/
+/.kilo/plans/
+/.kilo/skills/
+
+# Historical / generated class output (never version source copies here)
+/bin/
+
+# Local reference material and dependency-archive extraction output
+/wiki-reference/
+/gui-textures/
+/com/
+/META-INF/
+/assets/
+/data/
+/maidsoulkitchen-compat.mixins.json
+/maidsoulkitchen.mixins.json
+/maidsoulkitchen.refmap.json
+/mod_task_clazz.json
+/pack.mcmeta
+/task_compat.txt

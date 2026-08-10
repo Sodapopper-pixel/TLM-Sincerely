@@ -22,9 +22,10 @@ public final class AutoWorkToggleButtonController {
             return;
         }
         ClientAutoWorkService.get().requestRefresh();
-        // 76 px equals the portrait-panel width and ends just before the
-        // right configuration area at leftPos + 80.
+        // 69x29 slot at (4, 247) on the maid main background; the actual
+        // clickable area is restricted inside AutoWorkVirtualTaskButton
+        // to the inner 63x19 region.
         event.addButton("tlm_sincerely_auto_work_toggle", new AutoWorkVirtualTaskButton(
-                event.getLeftPos() + 2, event.getTopPos() + 253, 76, 19, maid.getUUID()));
+                event.getLeftPos() + 4, event.getTopPos() + 247, 69, 29, maid.getUUID()));
     }
 }

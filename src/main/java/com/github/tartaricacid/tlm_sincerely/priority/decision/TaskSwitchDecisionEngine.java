@@ -102,6 +102,16 @@ public final class TaskSwitchDecisionEngine {
         // configured task that has reached its confirmation threshold.
         boolean currentConfigured = preset != null && preset.hasTask(currentUid);
         DetectionResult currentResult = cache.getFresh(currentUid, currentTick);
+        boolean currentIsIdle = currentUid.equals(TaskManager.getIdleTask().getUid());
+        // An external addon or direct code path may select a real task without
+        // going through our GUI, leaving auto work enabled. That task is not
+        // sampled unless it is in the preset, so UNKNOWN is the only safe
+        // signal. Preserve it rather than yanking a manual/addon selection;
+        // idle is the sole exception so enabling auto work can still start.
+        if (!currentConfigured && !currentIsIdle && currentResult.availability() == Availability.UNKNOWN) {
+            LOGGER.debug("[TaskDecision] maid={} keep={} reason=EXTERNAL_UNKNOWN_CURRENT", maid.getUUID(), currentUid);
+            return;
+        }
         if (currentConfigured && currentResult.availability() == Availability.AVAILABLE
                 && !isHigherPriority(candidate.get().uid(), currentUid, sortedTasks)) {
             LOGGER.debug("[TaskDecision] maid={} keep={} reason=CURRENT_AVAILABLE", maid.getUUID(), currentUid);

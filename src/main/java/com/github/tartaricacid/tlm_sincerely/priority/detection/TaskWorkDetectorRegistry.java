@@ -77,4 +77,9 @@ public final class TaskWorkDetectorRegistry {
         }
         return UNKNOWN_DETECTOR;
     }
+
+    /** Returns whether {@code detector} is the safe no-detector fallback. */
+    public static boolean isUnknown(TaskWorkDetector detector) {
+        return detector == UNKNOWN_DETECTOR;
+    }
 }

@@ -110,6 +110,15 @@ public final class TaskDetectionScheduler {
                     continue;
                 }
                 TaskWorkDetector detector = TaskWorkDetectorRegistry.resolve(task);
+                if (TaskWorkDetectorRegistry.isUnknown(detector)) {
+                    MaidDetectionCache cache = runtime.getDetectionCache(maid);
+                    if (cache.shouldLogWarning(taskUid, currentTick)) {
+                        LOGGER.warn("[TaskDetect] maid={} configured task {} has no detector; it remains safe to keep as "
+                                        + "the current task but will never be auto-selected. "
+                                        + "Its addon must register TaskWorkDetectorRegistry.register(...)",
+                                maid.getUUID(), taskUid);
+                    }
+                }
                 result.add(new DetectionJob(maid, taskUid, task, detector, taskIndex,
                         task instanceof IAttackTask, taskUid.equals(currentUid)));
             }

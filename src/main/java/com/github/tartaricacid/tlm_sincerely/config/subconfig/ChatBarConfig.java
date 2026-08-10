@@ -12,8 +12,8 @@ public final class ChatBarConfig {
     public static void init(ForgeConfigSpec.Builder builder) {
         builder.push("chatbar");
 
-        builder.comment("Chat with maid mode (button toggle state, default off)");
-        CHAT_MODE = builder.define("ChatModeEnabled", false);
+        builder.comment("Chat with maid mode (button toggle state, enabled by default)");
+        CHAT_MODE = builder.define("ChatModeEnabled", true);
 
         builder.comment("Whether chat messages are visible to all players (global mode)");
         GLOBAL_VISIBLE = builder.define("GlobalChatVisible", true);

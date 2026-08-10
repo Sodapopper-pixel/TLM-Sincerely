@@ -5,6 +5,7 @@ import com.github.tartaricacid.tlm_sincerely.config.subconfig.PriorityConfig;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkNetworking;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkSnapshot;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.SetMaidAutoWorkC2SPacket;
+import com.mojang.logging.LogUtils;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -13,8 +14,7 @@ import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
+import org.slf4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,21 +22,41 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Standalone "auto work switch" control below the maid portrait. It is a
- * plain {@link AbstractWidget} because TLM's {@code TaskButton} requires a
- * non-null {@code IMaidTask}; deliberately keeping it out of the task list
- * avoids breaking TLM's task paging and open/close visibility rules.
+ * Standalone "auto work switch" control below the maid portrait.
  *
- * <p>Click toggles the maid's auto work enabled flag via
- * {@link SetMaidAutoWorkC2SPacket} and never calls
- * {@code EntityMaid.setTask}.
+ * <p>The visual is a 69×29 slot drawn from
+ * {@code textures/gui/maid_gui_sincerely.png}; the clickable region is
+ * restricted to the inner 63×19 area (texture offset (4, 8)) so the
+ * transparent padding does not capture stray clicks.
+ *
+ * <p>One of four texture rows is chosen by the (globalOn, enabled) pair:
+ * {@code v0 = normal-off, v30 = global-off, v60 = normal-on, v90 = global-on}.
+ * The label is drawn black, centered inside the 63×19 click area.
+ *
+ * <p>Hover does not switch texture (the four states are already exhaustive)
+ * and the previous clock icon / blue outline / state-color text have been
+ * removed in favor of the unified style.
  */
 public final class AutoWorkVirtualTaskButton extends AbstractWidget {
-    /** Reuse the task-list texture for visual consistency with TLM buttons. */
+    private static final Logger LOGGER = LogUtils.getLogger();
     private static final ResourceLocation TASK_TEXTURE =
-            new ResourceLocation("touhou_little_maid", "textures/gui/maid_gui_task.png");
-    /** Vanilla clock icon — safe and visible. */
-    private static final ItemStack ICON = new ItemStack(Items.CLOCK);
+            new ResourceLocation("tlm_sincerely", "textures/gui/maid_gui_sincerely.png");
+    private static final int TEXTURE_SIZE = 256;
+
+    /** Source U is fixed; only V changes per state. */
+    private static final int TEX_U = 0;
+    private static final int TEX_V_NORMAL_OFF = 0;
+    private static final int TEX_V_GLOBAL_OFF = 30;
+    private static final int TEX_V_NORMAL_ON = 60;
+    private static final int TEX_V_GLOBAL_ON = 90;
+
+    /** Inner clickable area inside the 69×29 texture slot. */
+    private static final int HIT_X = 4;
+    private static final int HIT_Y = 8;
+    private static final int HIT_WIDTH = 63;
+    private static final int HIT_HEIGHT = 19;
+
+    private static final int LABEL_COLOR = 0xFF000000;
 
     private final UUID maidId;
 
@@ -47,11 +67,28 @@ public final class AutoWorkVirtualTaskButton extends AbstractWidget {
 
     @Override
     public void onClick(double mouseX, double mouseY) {
+        boolean globalOn = PriorityConfig.ENABLED.get();
+        if (!globalOn) {
+            setFocused(false);
+            LOGGER.debug("Ignored auto-work toggle while globally disabled: maid={}, hovered={}, focused={}",
+                    maidId, isHovered(), isFocused());
+            return;
+        }
         Optional<AutoWorkSnapshot.MaidEntry> entry =
                 ClientAutoWorkService.get().findMaid(maidId);
         boolean current = entry.map(AutoWorkSnapshot.MaidEntry::enabled).orElse(false);
         AutoWorkNetworking.channel().sendToServer(
                 new SetMaidAutoWorkC2SPacket(maidId, !current));
+        setFocused(false);
+        LOGGER.debug("Sent auto-work toggle: maid={}, beforeEnabled={}, hovered={}", maidId, current, isHovered());
+    }
+
+    @Override
+    public boolean isMouseOver(double mouseX, double mouseY) {
+        int hitX = getX() + HIT_X;
+        int hitY = getY() + HIT_Y;
+        return mouseX >= hitX && mouseX < hitX + HIT_WIDTH
+                && mouseY >= hitY && mouseY < hitY + HIT_HEIGHT;
     }
 
     @Override
@@ -60,39 +97,25 @@ public final class AutoWorkVirtualTaskButton extends AbstractWidget {
         boolean enabled = ClientAutoWorkService.get().findMaid(maidId)
                 .map(AutoWorkSnapshot.MaidEntry::enabled).orElse(false);
         boolean globalOn = PriorityConfig.ENABLED.get();
-        int yTex = 28;
-        if (this.isHoveredOrFocused()) {
-            yTex += 20;
-        }
-        // Same texture region TLM uses for task list entries
-        // (93,28) = 83x19 normal; (93,48) = 83x19 hovered.
-        graphics.blit(TASK_TEXTURE, getX(), getY(), 93, yTex, width, height, 256, 256);
-
-        // Icon
-        graphics.renderItem(ICON, getX() + 2, getY() + 1);
-        // Label
-        int labelColor;
+        int v;
         if (!globalOn) {
-            labelColor = 0xFFFF5555; // opaque red disabled-hint
-        } else if (enabled) {
-            labelColor = 0xFF3380FF; // opaque blue active
+            v = enabled ? TEX_V_GLOBAL_ON : TEX_V_GLOBAL_OFF;
         } else {
-            labelColor = 0xFF333333; // opaque normal
+            v = enabled ? TEX_V_NORMAL_ON : TEX_V_NORMAL_OFF;
         }
+        graphics.blit(TASK_TEXTURE, getX(), getY(), TEX_U, v, getWidth(), getHeight(), TEXTURE_SIZE, TEXTURE_SIZE);
+
+        // Label, centered inside the inner 63×19 click area.
         Minecraft mc = Minecraft.getInstance();
-        graphics.drawString(mc.font, getMessage(), getX() + 20, getY() + 5, labelColor, false);
+        int hitX = getX() + HIT_X;
+        int hitY = getY() + HIT_Y;
+        int textX = hitX + (HIT_WIDTH - mc.font.width(getMessage())) / 2;
+        int textY = hitY + (HIT_HEIGHT - mc.font.lineHeight) / 2;
+        graphics.drawString(mc.font, getMessage(), textX, textY, LABEL_COLOR, false);
 
-        // Blue outline when enabled
-        if (enabled && globalOn) {
-            int outline = 0x803380FF;
-            graphics.fill(getX(), getY(), getX() + width, getY() + 1, outline);
-            graphics.fill(getX(), getY() + height - 1, getX() + width, getY() + height, outline);
-            graphics.fill(getX(), getY(), getX() + 1, getY() + height, outline);
-            graphics.fill(getX() + width - 1, getY(), getX() + width, getY() + height, outline);
-        }
-
-        // Tooltip (cheap, no render-pass cost when not hovered)
-        if (isHoveredOrFocused()) {
+        // Tooltip only when the cursor is inside the inner hit area.
+        if (mouseX >= hitX && mouseX < hitX + HIT_WIDTH
+                && mouseY >= hitY && mouseY < hitY + HIT_HEIGHT) {
             renderHoverTooltip(graphics, mc, mouseX, mouseY);
         }
     }

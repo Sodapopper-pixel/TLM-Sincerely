@@ -1,6 +1,7 @@
 package com.github.tartaricacid.tlm_sincerely;
 
 import com.github.tartaricacid.tlm_sincerely.ai.context.MaidMemoryContext;
+import com.github.tartaricacid.tlm_sincerely.ai.context.MaidAutoWorkContext;
 import com.github.tartaricacid.tlm_sincerely.ai.tool.AutoWorkTool;
 import com.github.tartaricacid.tlm_sincerely.ai.tool.MaidMemoryTool;
 import com.github.tartaricacid.tlm_sincerely.client.gui.ConfigScreen;
@@ -93,6 +94,10 @@ public class SincerelyExtension implements ILittleMaid {
                 "Maid persistent memories: key-value facts about the player, past events, preferences",
                 true);
         register.registerContext("tlm_sincerely_memory", new MaidMemoryContext());
+        register.registerCategory("tlm_sincerely_auto_work",
+                "Current auto work switch status and configured task priority",
+                true);
+        register.registerContext("tlm_sincerely_auto_work", new MaidAutoWorkContext());
     }
 
     @SubscribeEvent

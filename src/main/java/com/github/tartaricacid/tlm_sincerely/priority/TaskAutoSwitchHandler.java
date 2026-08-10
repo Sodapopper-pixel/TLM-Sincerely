@@ -32,8 +32,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -63,23 +65,28 @@ public final class TaskAutoSwitchHandler {
     private static final int STUCK_BRAIN_REFRESH_TICKS = 60;
     private static final int STARTUP_TRACE_TICKS = 120;
     private static final TaskSwitchDecisionEngine DECISION_ENGINE = new TaskSwitchDecisionEngine();
+    /** Server-thread requests issued when a player/agent enables or retargets auto work. */
+    private static final Map<UUID, String> IMMEDIATE_EVALUATION_REQUESTS = new HashMap<>();
 
     private TaskAutoSwitchHandler() {
     }
 
     @SubscribeEvent
     public static void onServerStarting(ServerStartingEvent event) {
+        IMMEDIATE_EVALUATION_REQUESTS.clear();
         TaskDetectionRuntimeState.start(event.getServer());
     }
 
     @SubscribeEvent
     public static void onServerStopped(ServerStoppedEvent event) {
+        IMMEDIATE_EVALUATION_REQUESTS.clear();
         TaskDetectionRuntimeState.stop(event.getServer());
     }
 
     @SubscribeEvent
     public static void onEntityLeaveLevel(EntityLeaveLevelEvent event) {
         if (event.getEntity() instanceof EntityMaid maid && event.getLevel() instanceof ServerLevel level) {
+            IMMEDIATE_EVALUATION_REQUESTS.remove(maid.getUUID());
             TaskDetectionRuntimeState.clearMaid(level.getServer(), maid.getUUID());
         }
     }
@@ -87,8 +94,23 @@ public final class TaskAutoSwitchHandler {
     @SubscribeEvent
     public static void onMaidDeath(LivingDeathEvent event) {
         if (event.getEntity() instanceof EntityMaid maid && maid.level() instanceof ServerLevel level) {
+            IMMEDIATE_EVALUATION_REQUESTS.remove(maid.getUUID());
             TaskDetectionRuntimeState.clearMaid(level.getServer(), maid.getUUID());
         }
+    }
+
+    /**
+     * Schedules one evaluation on the next server tick. It bypasses only the
+     * poll-interval wait; normal detector availability and task-hold safety
+     * rules remain authoritative.
+     */
+    public static void requestImmediateEvaluation(EntityMaid maid, String reason) {
+        if (maid == null || !(maid.level() instanceof ServerLevel)) {
+            return;
+        }
+        IMMEDIATE_EVALUATION_REQUESTS.put(maid.getUUID(), reason == null ? "UNSPECIFIED" : reason);
+        LOGGER.debug("[TaskAutoSwitch] immediate evaluation requested maid={} reason={}",
+                maid.getUUID(), IMMEDIATE_EVALUATION_REQUESTS.get(maid.getUUID()));
     }
 
     @SubscribeEvent
@@ -179,10 +201,15 @@ public final class TaskAutoSwitchHandler {
             }
             MaidDetectionCache cache = runtime.getDetectionCache(maid);
             MaidSwitchState state = runtime.getSwitchState(maid);
+            String immediateReason = IMMEDIATE_EVALUATION_REQUESTS.remove(maid.getUUID());
             boolean attackHandled = DECISION_ENGINE.handleExperimentalAttackPreempt(maid, preset, sortedTasks,
                     cache, state, currentTick);
-            if (!attackHandled && (decisionTick || cache.hasDefinitiveUpdateAt(currentTick))) {
+            if (!attackHandled && (immediateReason != null || decisionTick || cache.hasDefinitiveUpdateAt(currentTick))) {
                 DECISION_ENGINE.evaluateNormalSwitch(maid, preset, sortedTasks, cache, state, currentTick);
+                if (immediateReason != null) {
+                    LOGGER.debug("[TaskAutoSwitch] immediate evaluation completed maid={} reason={} task={}",
+                            maid.getUUID(), immediateReason, maid.getTask().getUid());
+                }
             }
             traceTaskStartup(maid, cache, state, currentTick);
         }
