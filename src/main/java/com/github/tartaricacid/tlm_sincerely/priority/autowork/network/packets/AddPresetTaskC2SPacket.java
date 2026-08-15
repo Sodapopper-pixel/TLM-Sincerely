@@ -1,6 +1,7 @@
 package com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets;
 
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPresetService;
+import com.github.tartaricacid.tlm_sincerely.priority.TaskAutoSwitchHandler;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkPermission;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkServerHandler;
 import com.github.tartaricacid.touhoulittlemaid.entity.task.TaskManager;
@@ -50,6 +51,10 @@ public final class AddPresetTaskC2SPacket {
                 LOGGER.info("[AutoWork] AddPresetTask: unknown task {}", msg.taskId);
                 return;
             }
+            if (TaskManager.getIdleTask().getUid().equals(msg.taskId)) {
+                LOGGER.info("[AutoWork] AddPresetTask: idle task cannot be added to a preset");
+                return;
+            }
             AutoWorkPresetService presetService =
                     AutoWorkPresetService.getOrNull(sender.server);
             if (presetService == null) {
@@ -61,6 +66,7 @@ public final class AddPresetTaskC2SPacket {
                         msg.presetId, msg.taskId);
                 return;
             }
+            TaskAutoSwitchHandler.requestPresetRescan(sender.server, msg.presetId, "ADD_PRESET_TASK");
             AutoWorkServerHandler.sendSnapshot(sender);
         });
         ctx.get().setPacketHandled(true);

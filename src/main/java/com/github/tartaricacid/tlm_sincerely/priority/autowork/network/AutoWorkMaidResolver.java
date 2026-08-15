@@ -3,6 +3,7 @@ package com.github.tartaricacid.tlm_sincerely.priority.autowork.network;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPresetService;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkState;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkStateService;
+import com.github.tartaricacid.tlm_sincerely.priority.TaskAutoSwitchHandler;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -40,10 +41,8 @@ public final class AutoWorkMaidResolver {
         if (presetService == null || stateService == null) {
             return 0;
         }
-        UUID newDefault = presetService.getDefaultPresetId();
-        if (newDefault.equals(deletedPresetId)) {
-            // The service has already advanced its default to another
-            // preset; nothing for us to do.
+        UUID newDefault = presetService.getReplacementPresetId(deletedPresetId);
+        if (newDefault == null) {
             return 0;
         }
         int rewritten = 0;
@@ -62,6 +61,9 @@ public final class AutoWorkMaidResolver {
                         current.revision() + 1
                 );
                 stateService.setState(maid, next);
+                if (next.enabled()) {
+                    TaskAutoSwitchHandler.requestImmediateEvaluation(maid, "DELETE_PRESET_FALLBACK", true);
+                }
                 rewritten++;
                 LOGGER.info(
                         "[AutoWorkMaidResolver] reassigned maid {} to default preset {} (was {})",

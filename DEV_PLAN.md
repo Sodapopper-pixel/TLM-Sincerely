@@ -68,10 +68,11 @@
 - ⏸ Mixin ChatScreen 注入按钮
 - ⏸ 备选方案：按键绑定 / Overlay HUD
 
-### 二、多工作模式（已实现，2026-08-01 重构独立工作检测）
+### 二、多工作模式（已实现，2026-08-15 v3 兼容升级）
 
 - `docs/自动切换工作模块.md` - 多工作模式开发文档（检测架构、切换规则、配置格式）
 - `docs/plans/独立工作检测系统重构计划.md` - 已完成的独立检测系统重构计划归档
+- `docs/plans/自动工作稳定性与附属兼容计划.md` - v3 收尾，详见下文
 
 #### 1. 数据层
 - ✓ TaskPriorityPreset - 预设数据类（优先级映射 + 排序列表）
@@ -84,10 +85,12 @@
 - ✓ AttackTaskWorkDetector - `IAttackTask.findFirstValidAttackTarget()` 独立检测
 - ✓ FarmTaskWorkDetector - `IFarmTask` 增量扫描、种子快照、方块与路径预算
 - ✓ MaidDetectionCache / TaskDetectionRuntimeState - 按服务器会话隔离缓存、游标和生命周期清理
-- ✓ TaskSwitchDecisionEngine - 唯一自动 `maid.setTask()` 调用点，确认次数、最短保持与 UNKNOWN 保守保持
+- ✓ TaskSwitchDecisionEngine - 唯一自动 `maid.setTask()` 调用点，确认次数、最短保持与 v3 平衡 UNKNOWN 接管语义
 - ✓ 实验性攻击抢占默认关闭，仅允许预设中已配置的攻击任务立即抢占
 - ✓ 自动切换后任务仍为 AVAILABLE 但连续 60 tick 无工作目标时，可按默认开启的配置强制刷新一次 Brain
 - ✓ 旧 Probe 试切、Brain idle 判断、Memory 清理逻辑及旧配置字段已删除
+- ✓ TaskScanCursor 不再因女仆移动重置扫描；PATH_BUDGET_EXHAUSTED 推进到下一候选
+- ✓ 成功切换记录 INFO 级 `[TaskDecision]`，reason 区分 `EXTERNAL_UNKNOWN_REPLACED` / `HIGHER_PRIORITY_OVER_UNKNOWN` / `CURRENT_UNSUPPORTED_OR_DISABLED` / `CURRENT_AVAILABLE` / `CURRENT_UNAVAILABLE_CONFIRMING` 等
 
 #### 3. GUI 层
 - ✓ TaskPriorityScreen - 独立 Screen（非 Container）
@@ -114,6 +117,16 @@
 
 #### 7. 已知问题
 - ⚠ 滚轮修改优先级时，焦点与光标所在行可能不同步（GUI 缩放导致坐标偏差）
+
+#### 8. 附属任务兼容（v3 已实现）
+- ✓ TLM 8 个专用 Detector：`honey`/`feed`/`milk`/`feed_animal`/`torch`/`fishing`/`extinguishing`（在 `Builtin*`） + 已有 `shears`/`board_games`
+- ✓ MaidSoulKitchen 4 个 Detector：`berries_farm`/`fruit_farm`/`feed_animal_t`/`cook`（仅炉灶子任务）
+- ✓ MaidUsefulTask 2 个 Detector：`maid_tree`（只读自然树近似）+ `locate`（只认主手+目标验证）
+- ✓ MaidStorageManager Detector：`storage_manage`（PLACE/RESORT + 可达 ITEM_HANDLER）
+- ✓ known-bad fallback：`touhou_little_maid:feed_animal` / `maidsoulkitchen:feed_animal_t`（错误攻击 fallback）
+- ✓ `/tlmautowork compat report` 命令及子命令（`report all` / `supported` / `fallback` / `unsupported` / `blocked` / `blacklist` / `whitelist` / `set reminder` / `reload`）
+- ✓ 报告顶部 4 个分类计数可点击切换；上一页/下一页携带当前 filter
+- ✓ `touhou_little_maid:idle` 从报告与计数中排除，但 UID 仍用于配置校验，`isAutoScheduleAllowed(idle)` 恒为 false
 
 ---
 

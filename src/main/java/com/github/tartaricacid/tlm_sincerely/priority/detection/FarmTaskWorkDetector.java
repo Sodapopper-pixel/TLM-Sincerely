@@ -71,7 +71,7 @@ public final class FarmTaskWorkDetector implements TaskWorkDetector {
                 continue;
             }
             if (!context.consumePathCheck()) {
-                context.setCursor(cursor);
+                context.setCursor(nextCursor);
                 return DetectionResult.unknown(task.getUid(), context.currentTick(), "PATH_BUDGET_EXHAUSTED");
             }
             if (maid.canPathReach(basePos)) {

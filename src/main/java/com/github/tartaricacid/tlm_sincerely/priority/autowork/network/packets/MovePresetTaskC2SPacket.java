@@ -2,6 +2,7 @@ package com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets;
 
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPreset;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPresetService;
+import com.github.tartaricacid.tlm_sincerely.priority.TaskAutoSwitchHandler;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkPermission;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkServerHandler;
 import net.minecraft.network.FriendlyByteBuf;
@@ -72,6 +73,7 @@ public final class MovePresetTaskC2SPacket {
                         msg.presetId, msg.taskId, clamped);
                 return;
             }
+            TaskAutoSwitchHandler.requestPresetRescan(sender.server, msg.presetId, "MOVE_PRESET_TASK");
             AutoWorkServerHandler.sendSnapshot(sender);
         });
         ctx.get().setPacketHandled(true);

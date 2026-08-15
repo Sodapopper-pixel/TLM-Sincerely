@@ -12,10 +12,18 @@ public final class MaidDetectionCache {
     private final Map<ResourceLocation, Long> lastAttemptTicks = new HashMap<>();
     private final Map<ResourceLocation, Availability> lastDefinitiveAvailability = new HashMap<>();
     private final Map<ResourceLocation, Integer> definitiveConfirmations = new HashMap<>();
+    private final Map<ResourceLocation, Integer> completedScanCycles = new HashMap<>();
+    private final Map<ResourceLocation, Integer> consecutiveBudgetExhaustions = new HashMap<>();
     private final Map<ResourceLocation, Long> lastWarningTicks = new HashMap<>();
     private long lastDefinitiveUpdateTick = -1;
+    private long activeGeneration;
+    private long staleIgnoredCount;
 
-    public DetectionResult getFresh(ResourceLocation taskUid, long currentTick) {
+    public DetectionResult getFresh(ResourceLocation taskUid, long generation, long currentTick) {
+        if (activeGeneration != generation) {
+            staleIgnoredCount++;
+            return DetectionResult.unknown(taskUid, currentTick, "STALE_GENERATION");
+        }
         DetectionResult definitive = definitiveResults.get(taskUid);
         if (definitive != null && !definitive.isExpired(currentTick)) {
             return definitive;
@@ -29,7 +37,11 @@ public final class MaidDetectionCache {
                 : attempt;
     }
 
-    public void record(DetectionResult result) {
+    public void record(DetectionResult result, long generation) {
+        if (activeGeneration != generation) {
+            clearDetectionData();
+            activeGeneration = generation;
+        }
         ResourceLocation taskUid = result.taskUid();
         int confirmations = 0;
         if (result.availability() != Availability.UNKNOWN) {
@@ -50,8 +62,31 @@ public final class MaidDetectionCache {
         }
     }
 
-    public boolean hasDefinitiveUpdateAt(long currentTick) {
-        return lastDefinitiveUpdateTick == currentTick;
+    public boolean hasDefinitiveUpdateAt(long generation, long currentTick) {
+        return activeGeneration == generation && lastDefinitiveUpdateTick == currentTick;
+    }
+
+    public int freshResultCount(long generation, long currentTick) {
+        if (activeGeneration != generation) {
+            return 0;
+        }
+        int count = 0;
+        for (DetectionResult result : latestAttempts.values()) {
+            if (!result.isExpired(currentTick)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    public long staleIgnoredCount() {
+        return staleIgnoredCount;
+    }
+
+    public void invalidateForGeneration(long generation) {
+        clearDetectionData();
+        activeGeneration = generation;
+        staleIgnoredCount = 0;
     }
 
     public boolean isDue(ResourceLocation taskUid, long currentTick, int intervalTicks) {
@@ -78,6 +113,27 @@ public final class MaidDetectionCache {
         }
     }
 
+    /** Records farm scan completion and repeated budget pressure for scheduler diagnostics. */
+    public void recordScanOutcome(ResourceLocation taskUid, DetectionResult result, TaskScanCursor cursor) {
+        String evidence = result.evidence();
+        if (evidence.contains("BUDGET_EXHAUSTED")) {
+            consecutiveBudgetExhaustions.merge(taskUid, 1, Integer::sum);
+            return;
+        }
+        if (cursor == null && evidence.startsWith("FULL_SCAN_")) {
+            completedScanCycles.merge(taskUid, 1, Integer::sum);
+            consecutiveBudgetExhaustions.remove(taskUid);
+        }
+    }
+
+    public boolean hasRepeatedBudgetExhaustion(ResourceLocation taskUid) {
+        return consecutiveBudgetExhaustions.getOrDefault(taskUid, 0) >= 3;
+    }
+
+    public int completedScanCycles(ResourceLocation taskUid) {
+        return completedScanCycles.getOrDefault(taskUid, 0);
+    }
+
     public boolean shouldLogWarning(ResourceLocation taskUid, long currentTick) {
         Long lastWarning = lastWarningTicks.get(taskUid);
         if (lastWarning != null && currentTick >= lastWarning && currentTick - lastWarning < 200) {
@@ -88,13 +144,21 @@ public final class MaidDetectionCache {
     }
 
     public void clear() {
+        clearDetectionData();
+        lastWarningTicks.clear();
+        activeGeneration = 0;
+        staleIgnoredCount = 0;
+    }
+
+    private void clearDetectionData() {
         latestAttempts.clear();
         definitiveResults.clear();
         cursors.clear();
         lastAttemptTicks.clear();
         lastDefinitiveAvailability.clear();
         definitiveConfirmations.clear();
-        lastWarningTicks.clear();
+        completedScanCycles.clear();
+        consecutiveBudgetExhaustions.clear();
         lastDefinitiveUpdateTick = -1;
     }
 }

@@ -15,13 +15,14 @@
 # Historical / generated class output (never version source copies here)
 /bin/
 
-# Local reference material and dependency-archive extraction output
+# Dependency decompile / extractor output (used during research)
 /wiki-reference/
 /gui-textures/
 /com/
 /META-INF/
 /assets/
 /data/
+/studio/
 /maidsoulkitchen-compat.mixins.json
 /maidsoulkitchen.mixins.json
 /maidsoulkitchen.refmap.json

@@ -41,6 +41,14 @@ public final class AutoWorkSnapshotS2CPacket {
             }
         }
 
+        List<AutoWorkSnapshot.CompatEntry> compatEntries = msg.snapshot.compatEntries();
+        buf.writeVarInt(compatEntries.size());
+        for (AutoWorkSnapshot.CompatEntry entry : compatEntries) {
+            buf.writeResourceLocation(entry.taskUid());
+            buf.writeUtf(entry.level(), 32);
+            buf.writeUtf(entry.reason(), 128);
+        }
+
         List<AutoWorkSnapshot.MaidEntry> maids = msg.snapshot.maids();
         buf.writeVarInt(maids.size());
         for (AutoWorkSnapshot.MaidEntry entry : maids) {
@@ -68,6 +76,13 @@ public final class AutoWorkSnapshotS2CPacket {
             presets.add(new AutoWorkSnapshot.PresetEntry(id, name, order));
         }
 
+        int compatCount = buf.readVarInt();
+        List<AutoWorkSnapshot.CompatEntry> compatEntries = new ArrayList<>(compatCount);
+        for (int i = 0; i < compatCount; i++) {
+            compatEntries.add(new AutoWorkSnapshot.CompatEntry(
+                    buf.readResourceLocation(), buf.readUtf(32), buf.readUtf(128)));
+        }
+
         int maidCount = buf.readVarInt();
         List<AutoWorkSnapshot.MaidEntry> maids = new ArrayList<>(maidCount);
         for (int i = 0; i < maidCount; i++) {
@@ -79,7 +94,7 @@ public final class AutoWorkSnapshotS2CPacket {
         }
 
         return new AutoWorkSnapshotS2CPacket(
-                new AutoWorkSnapshot(revision, defaultId, presets, maids)
+                new AutoWorkSnapshot(revision, defaultId, presets, compatEntries, maids)
         );
     }
 

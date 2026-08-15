@@ -129,6 +129,7 @@ dependencies {
     runtimeOnly fg.deobf("libs:modnametooltip-forge:1.20.1-1.20.0")
     runtimeOnly fg.deobf("libs:ModernUI-Forge:1.20.1-3.12.0.1")
     runtimeOnly fg.deobf("libs:maid_useful_task-forge:1.20.1-1.4.0")
+    compileOnly fg.deobf("libs:maidsoulkitchen-forge:1.20.1-0.3.0.9")
     runtimeOnly fg.deobf("libs:maidsoulkitchen-forge:1.20.1-0.3.0.9")
     // IMBlocker 必须走 fg.deobf；且需使用 devfix 版：
     // 原版 WindowMixin 同时注入 setGuiScale(D)V 与 setGuiScale(I)V（多版本兼容），

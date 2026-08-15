@@ -10,6 +10,9 @@ public final class PriorityConfig {
     public static ForgeConfigSpec.IntValue AVAILABLE_CONFIRMATIONS;
     public static ForgeConfigSpec.IntValue UNAVAILABLE_CONFIRMATIONS;
     public static ForgeConfigSpec.IntValue MINIMUM_TASK_HOLD_TICKS;
+    public static ForgeConfigSpec.IntValue REVERSE_SWITCH_WINDOW_TICKS;
+    public static ForgeConfigSpec.IntValue REVERSE_SWITCH_THRESHOLD;
+    public static ForgeConfigSpec.IntValue REVERSE_SWITCH_COOLDOWN_TICKS;
     public static ForgeConfigSpec.IntValue DETECTION_BLOCK_BUDGET_PER_TICK;
     public static ForgeConfigSpec.IntValue PATH_CHECK_BUDGET_PER_TICK;
 
@@ -39,6 +42,15 @@ public final class PriorityConfig {
 
         builder.comment("Minimum ticks to keep a normally selected task before normal switching");
         MINIMUM_TASK_HOLD_TICKS = builder.defineInRange("MinimumTaskHoldTicks", 60, 0, 12000);
+
+        builder.comment("Time window used to count normal A-to-B-to-A task reversals");
+        REVERSE_SWITCH_WINDOW_TICKS = builder.defineInRange("ReverseSwitchWindowTicks", 240, 20, 12000);
+
+        builder.comment("Normal reverse switches allowed inside the window before an anti-thrashing cooldown starts");
+        REVERSE_SWITCH_THRESHOLD = builder.defineInRange("ReverseSwitchThreshold", 2, 1, 20);
+
+        builder.comment("Cooldown applied after repeated normal reverse switches; experimental attack preemption is excluded");
+        REVERSE_SWITCH_COOLDOWN_TICKS = builder.defineInRange("ReverseSwitchCooldownTicks", 200, 20, 12000);
 
         builder.comment("Maximum farm block checks performed by all maids per server tick");
         DETECTION_BLOCK_BUDGET_PER_TICK = builder.defineInRange("DetectionBlockBudgetPerTick", 256, 16, 4096);

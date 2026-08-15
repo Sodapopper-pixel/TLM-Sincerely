@@ -3,6 +3,7 @@ package com.github.tartaricacid.tlm_sincerely.priority.decision;
 import com.github.tartaricacid.tlm_sincerely.config.subconfig.PriorityConfig;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkInternalSetTaskGuard;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPreset;
+import com.github.tartaricacid.tlm_sincerely.priority.autowork.compat.AutoWorkCompatService;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.Availability;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.DetectionResult;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.MaidDetectionCache;
@@ -37,18 +38,19 @@ public final class TaskSwitchDecisionEngine {
     private static final int ATTACK_RELEASE_GRACE_TICKS = 20;
 
     public boolean handleExperimentalAttackPreempt(EntityMaid maid, AutoWorkPreset preset,
-                                                    List<ResourceLocation> sortedTasks,
-                                                    MaidDetectionCache cache, MaidSwitchState state,
-                                                    long currentTick) {
+                                                     List<ResourceLocation> sortedTasks,
+                                                     MaidDetectionCache cache, MaidSwitchState state,
+                                                     long currentTick, long generation) {
         if (!PriorityConfig.EXPERIMENTAL_ATTACK_PREEMPT.get()) {
             return false;
         }
         ResourceLocation currentUid = maid.getTask().getUid();
-        Optional<SwitchCandidate> attackCandidate = findAttackCandidate(maid, sortedTasks, cache, currentTick, currentUid);
+        Optional<SwitchCandidate> attackCandidate = findAttackCandidate(maid, sortedTasks, cache, currentTick,
+                generation, currentUid);
         if (attackCandidate.isPresent()) {
             SwitchCandidate candidate = attackCandidate.get();
             state.beginAttackPreempt(currentUid);
-            switchTo(maid, candidate.task(), state, currentTick, "EXPERIMENTAL_ATTACK_PREEMPT");
+            switchTo(maid, candidate.task(), state, currentTick, generation, "EXPERIMENTAL_ATTACK_PREEMPT", false);
             LOGGER.debug("[TaskPreempt] maid={} attack={} target={} experimental=true", maid.getUUID(),
                     candidate.uid(), candidate.targetUuid());
             return true;
@@ -57,7 +59,7 @@ public final class TaskSwitchDecisionEngine {
             return false;
         }
 
-        if (hasConfiguredAttackTarget(maid, sortedTasks, cache, currentTick)) {
+        if (hasConfiguredAttackTarget(maid, sortedTasks, cache, currentTick, generation)) {
             state.markAttackPresent();
             return true;
         }
@@ -67,81 +69,176 @@ public final class TaskSwitchDecisionEngine {
         }
 
         ResourceLocation suspendedUid = state.suspendedTaskUid();
-        if (suspendedUid != null && isAvailable(maid, suspendedUid, cache, currentTick)) {
+        if (suspendedUid != null && isAvailable(maid, suspendedUid, cache, currentTick, generation)) {
             resolveTask(suspendedUid).ifPresent(task -> switchTo(maid, task, state, currentTick,
-                    "ATTACK_TARGET_LOST_RESTORE"));
+                    generation, "ATTACK_TARGET_LOST_RESTORE", false));
         } else {
-            findHighestAvailable(maid, sortedTasks, cache, currentTick)
+            findHighestAvailable(maid, sortedTasks, cache, currentTick, generation)
                     .ifPresent(candidate -> switchTo(maid, candidate.task(), state, currentTick,
-                            "ATTACK_TARGET_LOST_RESELECT"));
+                            generation, "ATTACK_TARGET_LOST_RESELECT", false));
         }
         state.clearAttackPreempt();
         return true;
     }
 
     public void evaluateNormalSwitch(EntityMaid maid, AutoWorkPreset preset,
-                                     List<ResourceLocation> sortedTasks, MaidDetectionCache cache,
-                                     MaidSwitchState state, long currentTick) {
+                                      List<ResourceLocation> sortedTasks, MaidDetectionCache cache,
+                                      MaidSwitchState state, long currentTick, long generation) {
         if (!state.canSwitchNormally(currentTick, PriorityConfig.MINIMUM_TASK_HOLD_TICKS.get())) {
             return;
         }
-        Optional<SwitchCandidate> candidate = findHighestAvailable(maid, sortedTasks, cache, currentTick);
+        if (state.isReverseCooldownActive(currentTick)) {
+            LOGGER.debug("[TaskStability] maid={} cooldownUntil={} reason={} action=KEEP_CURRENT",
+                    maid.getUUID(), state.reverseCooldownEndTick(), state.lastSwitchReason());
+            return;
+        }
+        Optional<SwitchCandidate> candidate = findHighestAvailable(maid, sortedTasks, cache, currentTick, generation);
         if (candidate.isEmpty()) {
             return;
         }
-
+        SwitchCandidate chosen = candidate.get();
         ResourceLocation currentUid = maid.getTask().getUid();
-        if (candidate.get().uid().equals(currentUid)) {
+        if (chosen.uid().equals(currentUid)) {
             return;
         }
         // "Current real task in this maid's preset" is the key safety
-        // boundary. If the current task is not in the preset, we
-        // deliberately do not treat it as "configured" and fall through
-        // to a guarded switch — but the candidate has already been
-        // filtered through the preset, so the switch is always into a
-        // configured task that has reached its confirmation threshold.
+        // boundary. Preset membership decides whether the current task is an
+        // intentionally configured selection (which keeps its priority
+        // protection) or an external/manual selection (which may always be
+        // replaced once a confirmed candidate exists). The candidate itself
+        // has already been filtered through the preset and reached its
+        // AVAILABLE confirmation threshold before this method is reached.
         boolean currentConfigured = preset != null && preset.hasTask(currentUid);
-        DetectionResult currentResult = cache.getFresh(currentUid, currentTick);
+        DetectionResult currentResult = cache.getFresh(currentUid, generation, currentTick);
         boolean currentIsIdle = currentUid.equals(TaskManager.getIdleTask().getUid());
-        // An external addon or direct code path may select a real task without
-        // going through our GUI, leaving auto work enabled. That task is not
-        // sampled unless it is in the preset, so UNKNOWN is the only safe
-        // signal. Preserve it rather than yanking a manual/addon selection;
-        // idle is the sole exception so enabling auto work can still start.
-        if (!currentConfigured && !currentIsIdle && currentResult.availability() == Availability.UNKNOWN) {
-            LOGGER.debug("[TaskDecision] maid={} keep={} reason=EXTERNAL_UNKNOWN_CURRENT", maid.getUUID(), currentUid);
+        // Rule 1: current task is not in the preset and not idle. An external
+        // addon or direct code path may have selected a real task while auto
+        // work is enabled; such tasks are never sampled, so UNKNOWN used to
+        // block switching forever (EXTERNAL_UNKNOWN_CURRENT). Auto work being
+        // enabled plus a confirmed candidate is now enough to take over the
+        // configured slot; the reason distinguishes this from preset-driven
+        // replacements. AVAILABLE/UNAVAILABLE external tasks keep the
+        // original fall-through behaviour below (no priority protection).
+        if (!currentConfigured && !currentIsIdle) {
+            if (currentResult.availability() == Availability.UNKNOWN) {
+                if (suppressedByReverseStability(maid, state, currentUid, chosen.uid(), currentTick)) {
+                    return;
+                }
+                LOGGER.debug("[TaskDecision] maid={} generation={} keep=false from={} to={} reason=EXTERNAL_UNKNOWN_REPLACED",
+                        maid.getUUID(), generation, currentUid, chosen.uid());
+                switchTo(maid, chosen.task(), state, currentTick, generation, "EXTERNAL_UNKNOWN_REPLACED", true);
+                return;
+            }
+        } else if (currentConfigured) {
+            // Rule 3: the current task is in the preset but is no longer a
+            // usable selection (unregistered, disabled, or no longer allowed
+            // by the compat layer). Cached availability is untrustworthy for
+            // such tasks, so any confirmed candidate may replace it.
+            boolean currentUsable = resolveTask(currentUid)
+                    .map(task -> task.isEnable(maid) && isAutoScheduleAllowed(maid, currentUid))
+                    .orElse(false);
+            if (!currentUsable) {
+                if (suppressedByReverseStability(maid, state, currentUid, chosen.uid(), currentTick)) {
+                    return;
+                }
+                LOGGER.debug("[TaskDecision] maid={} generation={} keep=false from={} to={} reason=CURRENT_UNSUPPORTED_OR_DISABLED",
+                        maid.getUUID(), generation, currentUid, chosen.uid());
+                switchTo(maid, chosen.task(), state, currentTick, generation,
+                        "CURRENT_UNSUPPORTED_OR_DISABLED", true);
+                return;
+            }
+            // Rule 4: keep the original priority protection for an AVAILABLE
+            // configured task: only a strictly higher-priority candidate may
+            // take over.
+            if (currentResult.availability() == Availability.AVAILABLE) {
+                if (!isHigherPriority(chosen.uid(), currentUid, sortedTasks)) {
+                    LOGGER.debug("[TaskDecision] maid={} generation={} keep=true from={} to={} reason=CURRENT_AVAILABLE",
+                            maid.getUUID(), generation, currentUid, chosen.uid());
+                    return;
+                }
+                if (suppressedByReverseStability(maid, state, currentUid, chosen.uid(), currentTick)) {
+                    return;
+                }
+                LOGGER.debug("[TaskDecision] maid={} generation={} keep=false from={} to={} reason=HIGHER_PRIORITY_AVAILABLE",
+                        maid.getUUID(), generation, currentUid, chosen.uid());
+                switchTo(maid, chosen.task(), state, currentTick, generation, "HIGHER_PRIORITY_AVAILABLE", true);
+                return;
+            }
+            // Rule 4: keep the UNAVAILABLE confirmation gate for a configured
+            // task before leaving it.
+            if (currentResult.availability() == Availability.UNAVAILABLE) {
+                if (currentResult.consecutiveConfirmations() < PriorityConfig.UNAVAILABLE_CONFIRMATIONS.get()) {
+                    LOGGER.debug("[TaskDecision] maid={} generation={} keep=true from={} confirmations={} reason=CURRENT_UNAVAILABLE_CONFIRMING",
+                            maid.getUUID(), generation, currentUid, currentResult.consecutiveConfirmations());
+                    return;
+                }
+                if (suppressedByReverseStability(maid, state, currentUid, chosen.uid(), currentTick)) {
+                    return;
+                }
+                LOGGER.debug("[TaskDecision] maid={} generation={} keep=false from={} to={} reason=CURRENT_UNAVAILABLE",
+                        maid.getUUID(), generation, currentUid, chosen.uid());
+                switchTo(maid, chosen.task(), state, currentTick, generation, "CURRENT_UNAVAILABLE", true);
+                return;
+            }
+            // Rule 2: the current configured task is UNKNOWN but still exists,
+            // is enabled and is allowed by the compat layer (rule 3 already
+            // filtered the broken cases). Conservative balance: only a
+            // strictly higher-priority candidate may replace it; a
+            // lower-priority candidate keeps the current task.
+            if (!isHigherPriority(chosen.uid(), currentUid, sortedTasks)) {
+                LOGGER.debug("[TaskDecision] maid={} generation={} keep=true from={} to={} reason=CURRENT_UNKNOWN_KEEP",
+                        maid.getUUID(), generation, currentUid, chosen.uid());
+                return;
+            }
+            if (suppressedByReverseStability(maid, state, currentUid, chosen.uid(), currentTick)) {
+                return;
+            }
+            LOGGER.debug("[TaskDecision] maid={} generation={} keep=false from={} to={} reason=HIGHER_PRIORITY_OVER_UNKNOWN",
+                    maid.getUUID(), generation, currentUid, chosen.uid());
+            switchTo(maid, chosen.task(), state, currentTick, generation, "HIGHER_PRIORITY_OVER_UNKNOWN", true);
             return;
         }
-        if (currentConfigured && currentResult.availability() == Availability.AVAILABLE
-                && !isHigherPriority(candidate.get().uid(), currentUid, sortedTasks)) {
-            LOGGER.debug("[TaskDecision] maid={} keep={} reason=CURRENT_AVAILABLE", maid.getUUID(), currentUid);
+        // Fall-through: current task is not in the preset, not idle and not
+        // UNKNOWN (AVAILABLE or UNAVAILABLE). Keep the original behaviour of
+        // replacing it with the confirmed candidate; the reason is labelled
+        // as an external-current replacement instead of the misleading
+        // CURRENT_UNAVAILABLE.
+        if (suppressedByReverseStability(maid, state, currentUid, chosen.uid(), currentTick)) {
             return;
         }
-        // UNKNOWN never causes a switch: it is only safe to stay or to
-        // upgrade when the current task is demonstrably worse than the
-        // candidate. Keeping the current task while UNKNOWN is the
-        // conservative default documented in the design notes.
-        if (currentConfigured && currentResult.availability() == Availability.UNKNOWN) {
-            return;
+        LOGGER.debug("[TaskDecision] maid={} generation={} keep=false from={} to={} reason=EXTERNAL_CURRENT_REPLACED",
+                maid.getUUID(), generation, currentUid, chosen.uid());
+        switchTo(maid, chosen.task(), state, currentTick, generation, "EXTERNAL_CURRENT_REPLACED", true);
+    }
+
+    /**
+     * Reverse-switch suppression guard shared by every normal switch branch:
+     * an A-to-B-to-A reversal inside the window that crosses the threshold
+     * starts a finite cooldown and suppresses this switch.
+     */
+    private boolean suppressedByReverseStability(EntityMaid maid, MaidSwitchState state,
+                                                 ResourceLocation currentUid, ResourceLocation candidateUid,
+                                                 long currentTick) {
+        if (state.shouldSuppressReverseSwitch(currentUid, candidateUid, currentTick,
+                PriorityConfig.REVERSE_SWITCH_WINDOW_TICKS.get(), PriorityConfig.REVERSE_SWITCH_THRESHOLD.get(),
+                PriorityConfig.REVERSE_SWITCH_COOLDOWN_TICKS.get())) {
+            LOGGER.warn("[TaskStability] maid={} from={} to={} reverseCount={} cooldownUntil={} action=SUPPRESS",
+                    maid.getUUID(), currentUid, candidateUid, state.reverseSwitchCount(),
+                    state.reverseCooldownEndTick());
+            return true;
         }
-        if (currentConfigured && currentResult.availability() == Availability.UNAVAILABLE
-                && currentResult.consecutiveConfirmations() < PriorityConfig.UNAVAILABLE_CONFIRMATIONS.get()) {
-            return;
-        }
-        switchTo(maid, candidate.get().task(), state, currentTick,
-                currentConfigured && currentResult.availability() == Availability.AVAILABLE
-                        ? "HIGHER_PRIORITY_AVAILABLE" : "CURRENT_UNAVAILABLE");
+        return false;
     }
 
     private Optional<SwitchCandidate> findAttackCandidate(EntityMaid maid, List<ResourceLocation> sortedTasks,
-                                                           MaidDetectionCache cache, long currentTick,
-                                                           ResourceLocation currentUid) {
+                                                            MaidDetectionCache cache, long currentTick,
+                                                            long generation, ResourceLocation currentUid) {
         for (ResourceLocation taskUid : sortedTasks) {
             IMaidTask task = resolveTask(taskUid).orElse(null);
-            if (!(task instanceof IAttackTask) || !task.isEnable(maid)) {
+            if (!(task instanceof IAttackTask) || !isAutoScheduleAllowed(maid, taskUid) || !task.isEnable(maid)) {
                 continue;
             }
-            DetectionResult result = cache.getFresh(taskUid, currentTick);
+            DetectionResult result = cache.getFresh(taskUid, generation, currentTick);
             if (result.availability() == Availability.AVAILABLE) {
                 if (taskUid.equals(currentUid)) {
                     return Optional.empty();
@@ -153,11 +250,11 @@ public final class TaskSwitchDecisionEngine {
     }
 
     private boolean hasConfiguredAttackTarget(EntityMaid maid, List<ResourceLocation> sortedTasks,
-                                              MaidDetectionCache cache, long currentTick) {
+                                               MaidDetectionCache cache, long currentTick, long generation) {
         for (ResourceLocation taskUid : sortedTasks) {
             IMaidTask task = resolveTask(taskUid).orElse(null);
-            if (task instanceof IAttackTask && task.isEnable(maid)
-                    && cache.getFresh(taskUid, currentTick).availability() == Availability.AVAILABLE) {
+            if (task instanceof IAttackTask && isAutoScheduleAllowed(maid, taskUid) && task.isEnable(maid)
+                    && cache.getFresh(taskUid, generation, currentTick).availability() == Availability.AVAILABLE) {
                 return true;
             }
         }
@@ -165,13 +262,13 @@ public final class TaskSwitchDecisionEngine {
     }
 
     private Optional<SwitchCandidate> findHighestAvailable(EntityMaid maid, List<ResourceLocation> sortedTasks,
-                                                            MaidDetectionCache cache, long currentTick) {
+                                                             MaidDetectionCache cache, long currentTick, long generation) {
         for (ResourceLocation taskUid : sortedTasks) {
             IMaidTask task = resolveTask(taskUid).orElse(null);
-            if (task == null || !task.isEnable(maid)) {
+            if (task == null || !isAutoScheduleAllowed(maid, taskUid) || !task.isEnable(maid)) {
                 continue;
             }
-            DetectionResult result = cache.getFresh(taskUid, currentTick);
+            DetectionResult result = cache.getFresh(taskUid, generation, currentTick);
             if (result.availability() == Availability.AVAILABLE
                     && result.consecutiveConfirmations() >= PriorityConfig.AVAILABLE_CONFIRMATIONS.get()) {
                 return Optional.of(new SwitchCandidate(taskUid, task, result.targetEntityUuid()));
@@ -181,11 +278,17 @@ public final class TaskSwitchDecisionEngine {
     }
 
     private boolean isAvailable(EntityMaid maid, ResourceLocation taskUid,
-                                MaidDetectionCache cache, long currentTick) {
+                                 MaidDetectionCache cache, long currentTick, long generation) {
         IMaidTask task = resolveTask(taskUid).orElse(null);
-        DetectionResult result = cache.getFresh(taskUid, currentTick);
-        return task != null && task.isEnable(maid) && result.availability() == Availability.AVAILABLE
+        DetectionResult result = cache.getFresh(taskUid, generation, currentTick);
+        return task != null && isAutoScheduleAllowed(maid, taskUid) && task.isEnable(maid)
+                && result.availability() == Availability.AVAILABLE
                 && result.consecutiveConfirmations() >= PriorityConfig.AVAILABLE_CONFIRMATIONS.get();
+    }
+
+    private static boolean isAutoScheduleAllowed(EntityMaid maid, ResourceLocation taskUid) {
+        AutoWorkCompatService service = AutoWorkCompatService.getOrNull(maid.level().getServer());
+        return service == null || service.isAutoScheduleAllowed(taskUid);
     }
 
     private static Optional<IMaidTask> resolveTask(ResourceLocation taskUid) {
@@ -200,7 +303,7 @@ public final class TaskSwitchDecisionEngine {
     }
 
     private void switchTo(EntityMaid maid, IMaidTask targetTask, MaidSwitchState state,
-                          long currentTick, String reason) {
+                          long currentTick, long generation, String reason, boolean normalSwitch) {
         ResourceLocation currentUid = maid.getTask().getUid();
         if (currentUid.equals(targetTask.getUid())) {
             return;
@@ -210,9 +313,10 @@ public final class TaskSwitchDecisionEngine {
         // The guard is cleared in a finally-equivalent by the helper.
         ResourceLocation targetUid = targetTask.getUid();
         AutoWorkInternalSetTaskGuard.runInternal(maid.getUUID(), targetUid, () -> maid.setTask(targetTask));
-        state.recordSwitch(currentTick);
-        LOGGER.debug("[TaskDecision] maid={} current={} selected={} reason={}", maid.getUUID(),
-                currentUid, targetUid, reason);
+        state.recordSwitch(currentTick, currentUid, targetUid, reason, normalSwitch,
+                PriorityConfig.REVERSE_SWITCH_WINDOW_TICKS.get());
+        LOGGER.info("[TaskDecision] maid={} generation={} current={} selected={} reason={}", maid.getUUID(),
+                generation, currentUid, targetUid, reason);
     }
 
     private record SwitchCandidate(ResourceLocation uid, IMaidTask task, java.util.UUID targetUuid) {

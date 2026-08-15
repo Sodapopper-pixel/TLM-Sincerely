@@ -86,7 +86,7 @@ public final class CreatePresetC2SPacket {
             AutoWorkPreset preset = presetService.createPreset(name);
             if (targetMaid != null) {
                 stateService.setPresetId(targetMaid, preset.getId());
-                TaskAutoSwitchHandler.requestImmediateEvaluation(targetMaid, "CREATE_PRESET");
+                TaskAutoSwitchHandler.requestImmediateEvaluation(targetMaid, "CREATE_PRESET", true);
             }
             LOGGER.debug("[AutoWork] CreatePreset name={} id={} player={} targetMaid={}", name, preset.getId(),
                     sender.getName().getString(), msg.targetMaidId);

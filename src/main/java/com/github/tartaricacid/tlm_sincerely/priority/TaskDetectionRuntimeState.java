@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -23,6 +24,9 @@ public final class TaskDetectionRuntimeState {
 
     private final Map<UUID, MaidDetectionCache> detectionCaches = new HashMap<>();
     private final Map<UUID, MaidSwitchState> switchStates = new HashMap<>();
+    private final Map<UUID, Long> detectionGenerations = new HashMap<>();
+    private final Set<UUID> forceRescanMaids = new HashSet<>();
+    private final Map<UUID, Set<net.minecraft.resources.ResourceLocation>> pendingForceRescanTasks = new HashMap<>();
     private final Map<UUID, Long> lastSeenTicks = new HashMap<>();
     private final TaskDetectionScheduler scheduler = new TaskDetectionScheduler();
     private long lastTick = -1;
@@ -61,6 +65,62 @@ public final class TaskDetectionRuntimeState {
         return switchStates.computeIfAbsent(maid.getUUID(), unused -> new MaidSwitchState());
     }
 
+    /**
+     * Starts a new detection generation for one maid. Generation state is
+     * runtime-only: it is invalidated on server rebind and never leaks into
+     * persistent TaskData.
+     */
+    public long beginForceRescan(EntityMaid maid) {
+        UUID maidId = maid.getUUID();
+        long generation = detectionGenerations.getOrDefault(maidId, 0L) + 1;
+        detectionGenerations.put(maidId, generation);
+        getDetectionCache(maid).invalidateForGeneration(generation);
+        forceRescanMaids.add(maidId);
+        pendingForceRescanTasks.remove(maidId);
+        return generation;
+    }
+
+    public long getDetectionGeneration(EntityMaid maid) {
+        return detectionGenerations.getOrDefault(maid.getUUID(), 0L);
+    }
+
+    /** Prepares the current preset's tasks for one forced scan generation. */
+    public void prepareForceRescan(EntityMaid maid, java.util.List<net.minecraft.resources.ResourceLocation> taskIds) {
+        UUID maidId = maid.getUUID();
+        if (!forceRescanMaids.remove(maidId)) {
+            return;
+        }
+        if (taskIds.isEmpty()) {
+            pendingForceRescanTasks.remove(maidId);
+            return;
+        }
+        pendingForceRescanTasks.put(maidId, new LinkedHashSet<>(taskIds));
+    }
+
+    public boolean isForceRescanPending(EntityMaid maid, net.minecraft.resources.ResourceLocation taskUid) {
+        Set<net.minecraft.resources.ResourceLocation> pending = pendingForceRescanTasks.get(maid.getUUID());
+        return pending != null && pending.contains(taskUid);
+    }
+
+    public int forceRescanMaidCount() {
+        Set<UUID> maidIds = new HashSet<>(forceRescanMaids);
+        maidIds.addAll(pendingForceRescanTasks.keySet());
+        return maidIds.size();
+    }
+
+    /** Marks a task as sampled for the current force-rescan request. */
+    public void completeForceRescanTask(EntityMaid maid, net.minecraft.resources.ResourceLocation taskUid) {
+        UUID maidId = maid.getUUID();
+        Set<net.minecraft.resources.ResourceLocation> pending = pendingForceRescanTasks.get(maidId);
+        if (pending == null) {
+            return;
+        }
+        pending.remove(taskUid);
+        if (pending.isEmpty()) {
+            pendingForceRescanTasks.remove(maidId);
+        }
+    }
+
     public TaskDetectionScheduler scheduler() {
         return scheduler;
     }
@@ -91,7 +151,11 @@ public final class TaskDetectionRuntimeState {
         if (cache != null) {
             cache.clear();
         }
+        scheduler.clearMaid(maidUuid);
         switchStates.remove(maidUuid);
+        detectionGenerations.remove(maidUuid);
+        forceRescanMaids.remove(maidUuid);
+        pendingForceRescanTasks.remove(maidUuid);
         lastSeenTicks.remove(maidUuid);
     }
 
@@ -99,6 +163,10 @@ public final class TaskDetectionRuntimeState {
         detectionCaches.values().forEach(MaidDetectionCache::clear);
         detectionCaches.clear();
         switchStates.clear();
+        scheduler.clear();
+        detectionGenerations.clear();
+        forceRescanMaids.clear();
+        pendingForceRescanTasks.clear();
         lastSeenTicks.clear();
         lastTick = -1;
     }

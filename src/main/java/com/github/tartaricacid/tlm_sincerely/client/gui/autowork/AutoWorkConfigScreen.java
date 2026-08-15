@@ -225,9 +225,17 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
             // The server is authoritative for the maid's active preset. This
             // includes the new-preset flow, which atomically binds the maid to
             // the freshly created UUID before it returns this snapshot.
-                resolveMaidEntry().ifPresent(entry -> {
-                activePresetId = entry.presetId();
-                selectedTaskId = null;
+            // Clear the selection only when the active preset actually changed;
+            // snapshot updates within the same preset (task move/rename, edits
+            // by other operators) must keep the selection by task UID. A stale
+            // selection is cleared later during rebuild, when the task is no
+            // longer found in the preset order.
+            resolveMaidEntry().ifPresent(entry -> {
+                UUID nextPresetId = entry.presetId();
+                if (!java.util.Objects.equals(nextPresetId, activePresetId)) {
+                    activePresetId = nextPresetId;
+                    selectedTaskId = null;
+                }
             });
             dirty = true;
         }
@@ -396,8 +404,12 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
             TaskManager.findTask(taskId).ifPresent(ordered::add);
         }
         List<IMaidTask> available = new ArrayList<>();
+        ResourceLocation idleTaskUid = TaskManager.getIdleTask().getUid();
         for (IMaidTask task : TaskManager.getTaskIndex()) {
-            if (!order.contains(task.getUid())) {
+            // idle is the "do nothing" fallback, not a real work task, so it
+            // must never be part of a preset. Hide it from the addable list;
+            // the server rejects it as well (defense in depth).
+            if (!order.contains(task.getUid()) && !task.getUid().equals(idleTaskUid)) {
                 available.add(task);
             }
         }

@@ -23,10 +23,15 @@ public record AutoWorkSnapshot(
         int revision,
         UUID defaultPresetId,
         List<PresetEntry> presets,
+        List<CompatEntry> compatEntries,
         List<MaidEntry> maids
 ) {
     /** Single preset projection. */
     public record PresetEntry(UUID id, String name, List<ResourceLocation> order) {
+    }
+
+    /** Server-classified detector coverage used for client-only task labels. */
+    public record CompatEntry(ResourceLocation taskUid, String level, String reason) {
     }
 
     /**

@@ -4,6 +4,7 @@ import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPreset;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPresetService;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkState;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkStateService;
+import com.github.tartaricacid.tlm_sincerely.priority.autowork.compat.AutoWorkCompatService;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -53,6 +54,15 @@ public final class AutoWorkSnapshotBuilder {
         // granularity for individual rows.
         revision = (revision * 31) + defaultPresetId.hashCode();
 
+        List<AutoWorkSnapshot.CompatEntry> compatEntries = new ArrayList<>();
+        AutoWorkCompatService compatService = AutoWorkCompatService.getOrNull(server);
+        if (compatService != null) {
+            for (AutoWorkCompatService.ReportEntry entry : compatService.getEntries()) {
+                compatEntries.add(new AutoWorkSnapshot.CompatEntry(entry.uid(), entry.level().name(), entry.reason()));
+                revision = (revision * 31) + entry.hashCode();
+            }
+        }
+
         List<AutoWorkSnapshot.MaidEntry> maidEntries = new ArrayList<>();
         if (stateService != null) {
             for (ServerLevel level : server.getAllLevels()) {
@@ -78,7 +88,7 @@ public final class AutoWorkSnapshotBuilder {
             }
         }
 
-        return new AutoWorkSnapshot(revision, defaultPresetId, presets, maidEntries);
+        return new AutoWorkSnapshot(revision, defaultPresetId, presets, compatEntries, maidEntries);
     }
 
     private static boolean isVisibleTo(EntityMaid maid, ServerPlayer player) {

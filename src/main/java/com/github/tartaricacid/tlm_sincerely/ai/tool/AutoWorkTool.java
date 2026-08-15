@@ -4,8 +4,10 @@ import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPreset;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPresetService;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkState;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkStateService;
+import com.github.tartaricacid.tlm_sincerely.priority.autowork.compat.AutoWorkCompatService;
 import com.github.tartaricacid.tlm_sincerely.config.subconfig.PriorityConfig;
 import com.github.tartaricacid.tlm_sincerely.priority.TaskAutoSwitchHandler;
+import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkMaidResolver;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkServerHandler;
 import com.github.tartaricacid.touhoulittlemaid.ai.agent.tool.ITool;
 import com.github.tartaricacid.touhoulittlemaid.ai.manager.entity.LLMCallback;
@@ -167,6 +169,7 @@ public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
         if (presetService == null || stateService == null) {
             return callback.addToolResult("Auto work services are not bound to this server yet.", toolCallId);
         }
+        AutoWorkCompatService compatService = AutoWorkCompatService.getOrNull(server);
 
         String action = result.action();
         // Explicit deprecation: do not silently fall back to the new
@@ -179,7 +182,7 @@ public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
         }
 
         return switch (action) {
-            case "query" -> callback.addToolResult(query(presetService, stateService, maid), toolCallId);
+            case "query" -> callback.addToolResult(query(presetService, stateService, compatService, maid), toolCallId);
             case "set_auto_enabled" -> callback.addToolResult(
                     setAutoEnabled(server, presetService, stateService, maid, result), toolCallId);
             case "select_preset" -> callback.addToolResult(
@@ -211,8 +214,9 @@ public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
     // -----------------------------------------------------------------
 
     private String query(AutoWorkPresetService presetService,
-                         AutoWorkStateService stateService,
-                         EntityMaid maid) {
+                          AutoWorkStateService stateService,
+                          AutoWorkCompatService compatService,
+                          EntityMaid maid) {
         AutoWorkState state = stateService.getState(maid);
         AutoWorkPreset effective = presetService.resolveForMaid(state);
         AutoWorkPreset stored = presetService.getPreset(state.presetId());
@@ -226,7 +230,7 @@ public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
         if (effective != null) {
             sb.append("  effective preset: ").append(effective.getName())
                     .append(" (").append(effective.getId()).append(")\n");
-            appendOrder(sb, effective);
+            appendOrder(sb, effective, compatService);
         } else {
             sb.append("  effective preset: <none>\n");
         }
@@ -239,7 +243,7 @@ public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
                     .append(effective != null && preset.getId().equals(effective.getId()) ? "  (active)" : "")
                     .append("  size=").append(preset.getOrder().size())
                     .append('\n');
-            appendOrder(sb, preset);
+            appendOrder(sb, preset, compatService);
         }
         return sb.toString().trim();
     }
@@ -268,7 +272,7 @@ public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
             }
             AutoWorkState next = current.withEnabled(true).withPresetId(presetId);
             stateService.setState(maid, next);
-            TaskAutoSwitchHandler.requestImmediateEvaluation(maid, "AGENT_ENABLE");
+            TaskAutoSwitchHandler.requestImmediateEvaluation(maid, "AGENT_ENABLE", true);
             AutoWorkServerHandler.broadcastSnapshots(server);
             return "Auto work enabled for this maid using preset '%s' (preset_id=%s).%s".formatted(
                     preset.getName(), presetId, PriorityConfig.ENABLED.get() ? ""
@@ -296,7 +300,7 @@ public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
                     "Preset not found: " + presetId);
         }
         stateService.setPresetId(maid, presetId);
-        TaskAutoSwitchHandler.requestImmediateEvaluation(maid, "AGENT_SELECT_PRESET");
+        TaskAutoSwitchHandler.requestImmediateEvaluation(maid, "AGENT_SELECT_PRESET", true);
         AutoWorkServerHandler.broadcastSnapshots(server);
         return "Selected preset '%s' (preset_id=%s) for this maid.".formatted(preset.getName(), presetId);
     }
@@ -342,13 +346,18 @@ public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
         if (presetService.listPresets().size() <= 1) {
             return "Refused: at least one preset must remain in the library.";
         }
+        if (presetService.getPreset(presetId) == null) {
+            return ITool.invalidParam("preset_id", presetIdValues(presetService),
+                    "Preset not found: " + presetId);
+        }
+        int reassigned = AutoWorkMaidResolver.reassignLoadedMaidsToDefault(server, presetId);
         boolean ok = presetService.deletePreset(presetId);
         if (!ok) {
             return ITool.invalidParam("preset_id", presetIdValues(presetService),
                     "Preset not found: " + presetId);
         }
         persistAndBroadcast(server, presetService);
-        return "Deleted preset %s. Maids that referenced it fall back to the default preset on next read.".formatted(presetId);
+        return "Deleted preset %s. Reassigned %d loaded maids to the default preset.".formatted(presetId, reassigned);
     }
 
     private String addTask(MinecraftServer server, AutoWorkPresetService presetService, Result result) {
@@ -371,6 +380,7 @@ public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
             }
             return "Task '%s' is already present in preset %s.".formatted(taskId, presetId);
         }
+        TaskAutoSwitchHandler.requestPresetRescan(server, presetId, "AGENT_ADD_PRESET_TASK");
         persistAndBroadcast(server, presetService);
         return "Appended task '%s' to preset %s.".formatted(taskId, presetId);
     }
@@ -394,6 +404,7 @@ public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
         if (!removed) {
             return "Task '%s' is not in preset %s.".formatted(taskId, presetId);
         }
+        TaskAutoSwitchHandler.requestPresetRescan(server, presetId, "AGENT_REMOVE_PRESET_TASK");
         persistAndBroadcast(server, presetService);
         return "Removed task '%s' from preset %s.".formatted(taskId, presetId);
     }
@@ -428,6 +439,7 @@ public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
         if (!moved) {
             return "Task '%s' is already at position %d in preset %s.".formatted(taskId, clamped + 1, presetId);
         }
+        TaskAutoSwitchHandler.requestPresetRescan(server, presetId, "AGENT_MOVE_PRESET_TASK");
         persistAndBroadcast(server, presetService);
         return "Moved task '%s' to position %d in preset %s.".formatted(taskId, clamped + 1, presetId);
     }
@@ -436,7 +448,7 @@ public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
     // Helpers
     // -----------------------------------------------------------------
 
-    private static void appendOrder(StringBuilder sb, AutoWorkPreset preset) {
+    private static void appendOrder(StringBuilder sb, AutoWorkPreset preset, AutoWorkCompatService compatService) {
         List<ResourceLocation> order = preset.getOrder();
         if (order.isEmpty()) {
             sb.append("    (empty)\n");
@@ -448,7 +460,14 @@ public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
                     .map(task -> task.getName().getString())
                     .orElse("<unregistered>");
             sb.append("    ").append(i + 1).append(". ").append(taskId)
-                    .append(" [").append(taskName).append("]\n");
+                    .append(" [").append(taskName).append("]");
+            AutoWorkCompatService.ReportEntry compatEntry = compatService == null
+                    ? null : compatService.getEntry(taskId);
+            if (compatEntry != null) {
+                sb.append(" [detector=").append(compatEntry.level())
+                        .append(", reason=").append(compatEntry.reason()).append("]");
+            }
+            sb.append('\n');
         }
     }
 

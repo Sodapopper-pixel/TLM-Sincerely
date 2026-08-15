@@ -65,7 +65,7 @@ public final class SetMaidAutoWorkPresetC2SPacket {
                 return;
             }
             stateService.setPresetId(maid, msg.presetId);
-            TaskAutoSwitchHandler.requestImmediateEvaluation(maid, "PLAYER_SELECT_PRESET");
+            TaskAutoSwitchHandler.requestImmediateEvaluation(maid, "PLAYER_SELECT_PRESET", true);
             LOGGER.debug("[AutoWork] SetMaidAutoWorkPreset maid={} preset={}", maid.getUUID(), msg.presetId);
             AutoWorkServerHandler.sendSnapshot(sender);
         });

@@ -1,5 +1,6 @@
 package com.github.tartaricacid.tlm_sincerely.priority.autowork;
 
+import com.github.tartaricacid.touhoulittlemaid.entity.task.TaskManager;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
@@ -90,6 +91,16 @@ public final class AutoWorkPresetService {
         return preset;
     }
 
+    /** Returns the preset that would replace {@code deletedPresetId}, if any. */
+    public UUID getReplacementPresetId(UUID deletedPresetId) {
+        for (UUID presetId : presets.keySet()) {
+            if (!presetId.equals(deletedPresetId)) {
+                return presetId;
+            }
+        }
+        return null;
+    }
+
     public boolean setDefaultPreset(UUID id) {
         if (!presets.containsKey(id)) {
             return false;
@@ -132,6 +143,13 @@ public final class AutoWorkPresetService {
     }
 
     public boolean addTask(UUID presetId, ResourceLocation task) {
+        // Defense in depth: idle is the "do nothing" fallback, never a work
+        // order entry. Reject it regardless of the caller (GUI packet, AI
+        // tool, future call sites).
+        if (task == null || TaskManager.getIdleTask().getUid().equals(task)) {
+            LOGGER.warn("[AutoWorkPresetService] refusing to add idle task to preset {}", presetId);
+            return false;
+        }
         AutoWorkPreset preset = presets.get(presetId);
         if (preset == null) {
             return false;

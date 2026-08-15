@@ -59,7 +59,7 @@ public final class SetMaidAutoWorkC2SPacket {
             }
             stateService.setEnabled(maid, msg.enabled);
             if (msg.enabled) {
-                TaskAutoSwitchHandler.requestImmediateEvaluation(maid, "PLAYER_ENABLE");
+                TaskAutoSwitchHandler.requestImmediateEvaluation(maid, "PLAYER_ENABLE", true);
             }
             LOGGER.debug("[AutoWork] SetMaidAutoWork maid={} enabled={}", maid.getUUID(), msg.enabled);
             AutoWorkServerHandler.sendSnapshot(sender);

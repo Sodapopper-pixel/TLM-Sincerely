@@ -39,7 +39,7 @@ import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.S
  */
 public final class AutoWorkNetworking {
     private static final Logger LOGGER = LoggerFactory.getLogger(AutoWorkNetworking.class);
-    private static final String PROTOCOL_VERSION = "1";
+    private static final String PROTOCOL_VERSION = "2";
 
     private static final ResourceLocation CHANNEL_ID =
             new ResourceLocation(SincerelyExtension.MOD_ID, "auto_work");

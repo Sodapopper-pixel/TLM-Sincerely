@@ -32,8 +32,7 @@ public record TaskScanCursor(
     }
 
     public boolean matches(BlockPos newCenter, boolean newHomeMode, int newHorizontalRange, int newVerticalRange) {
-        return homeMode == newHomeMode && horizontalRange == newHorizontalRange && verticalRange == newVerticalRange
-                && (!homeMode || center.equals(newCenter));
+        return homeMode == newHomeMode && horizontalRange == newHorizontalRange && verticalRange == newVerticalRange;
     }
 
     public BlockPos currentPos() {

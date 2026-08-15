@@ -6,6 +6,7 @@ import com.github.tartaricacid.tlm_sincerely.ai.tool.AutoWorkTool;
 import com.github.tartaricacid.tlm_sincerely.ai.tool.MaidMemoryTool;
 import com.github.tartaricacid.tlm_sincerely.client.gui.ConfigScreen;
 import com.github.tartaricacid.tlm_sincerely.command.ChatCommand;
+import com.github.tartaricacid.tlm_sincerely.command.AutoWorkCompatCommand;
 import com.github.tartaricacid.tlm_sincerely.command.MemoryCommand;
 import com.github.tartaricacid.tlm_sincerely.command.UnicodeWordArgument;
 import com.github.tartaricacid.tlm_sincerely.config.GeneralConfig;
@@ -13,6 +14,9 @@ import com.github.tartaricacid.tlm_sincerely.memory.MemoryMaintenanceManager;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPresetService;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkStateService;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkTaskDataKeys;
+import com.github.tartaricacid.tlm_sincerely.priority.autowork.compat.AutoWorkCompatService;
+import com.github.tartaricacid.tlm_sincerely.priority.TaskAutoSwitchHandler;
+import com.github.tartaricacid.tlm_sincerely.priority.detection.compat.CompatDetectorBootstrap;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.menu.AutoWorkMenus;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkNetworking;
 import com.github.tartaricacid.touhoulittlemaid.ai.agent.context.GameContextRegister;
@@ -25,6 +29,7 @@ import net.minecraft.commands.synchronization.SingletonArgumentInfo;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.event.server.ServerStoppedEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -64,6 +69,7 @@ public class SincerelyExtension implements ILittleMaid {
         // via the @Mod annotation, so no manual listener registration
         // is required.
         AutoWorkNetworking.register();
+        CompatDetectorBootstrap.register();
     }
 
     private static void registerArgumentTypes() {
@@ -104,12 +110,17 @@ public class SincerelyExtension implements ILittleMaid {
     public void onRegisterCommands(RegisterCommandsEvent event) {
         ChatCommand.register(event.getDispatcher());
         MemoryCommand.register(event.getDispatcher());
+        AutoWorkCompatCommand.register(event.getDispatcher());
     }
 
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase == TickEvent.Phase.END) {
             MemoryMaintenanceManager.onServerTick(event.getServer());
+            AutoWorkCompatService compatService = AutoWorkCompatService.getOrNull(event.getServer());
+            if (compatService != null) {
+                compatService.onServerTick();
+            }
         }
     }
 
@@ -119,11 +130,24 @@ public class SincerelyExtension implements ILittleMaid {
         // state (which can fall back to the default id on cold reads).
         AutoWorkPresetService.bind(event.getServer());
         AutoWorkStateService.bind(event.getServer());
+        AutoWorkCompatService.bind(event.getServer());
+        TaskAutoSwitchHandler.requestServerRebindRescans(event.getServer());
     }
 
     @SubscribeEvent
     public void onServerStopped(ServerStoppedEvent event) {
+        AutoWorkCompatService.unbind(event.getServer());
         AutoWorkStateService.unbind(event.getServer());
         AutoWorkPresetService.unbind(event.getServer());
+    }
+
+    @SubscribeEvent
+    public void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+            AutoWorkCompatService compatService = AutoWorkCompatService.getOrNull(player.server);
+            if (compatService != null) {
+                compatService.queueLoginReminder(player);
+            }
+        }
     }
 }

@@ -5,6 +5,7 @@ import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPreset;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPresetService;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkState;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkStateService;
+import com.github.tartaricacid.tlm_sincerely.priority.autowork.compat.AutoWorkCompatService;
 import com.github.tartaricacid.touhoulittlemaid.ai.agent.context.AbstractMaidContext;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import com.github.tartaricacid.touhoulittlemaid.entity.task.TaskManager;
@@ -30,6 +31,7 @@ public final class MaidAutoWorkContext extends AbstractMaidContext {
 
         AutoWorkState state = stateService.getState(maid);
         AutoWorkPreset preset = presetService.resolveForMaid(state);
+        AutoWorkCompatService compatService = AutoWorkCompatService.getOrNull(server);
         String globalScheduling = PriorityConfig.ENABLED.get()
                 ? "Global automatic scheduling is active. "
                 : "Global automatic scheduling is paused, so no automatic task switch will occur until it is enabled. ";
@@ -43,11 +45,12 @@ public final class MaidAutoWorkContext extends AbstractMaidContext {
                 .append(". The effective preset is '").append(preset.getName())
                 .append("' (preset_id=").append(preset.getId()).append("). ")
                 .append("Configured task priority: ");
-        appendOrder(out, preset.getOrder());
+        appendOrder(out, preset.getOrder(), compatService);
         return out.toString();
     }
 
-    private static void appendOrder(StringBuilder out, List<ResourceLocation> order) {
+    private static void appendOrder(StringBuilder out, List<ResourceLocation> order,
+                                    AutoWorkCompatService compatService) {
         if (order.isEmpty()) {
             out.append("none.");
             return;
@@ -61,6 +64,11 @@ public final class MaidAutoWorkContext extends AbstractMaidContext {
                     .map(task -> task.getName().getString())
                     .orElse("unregistered task");
             out.append(index + 1).append(") ").append(name).append(" [").append(taskId).append("]");
+            AutoWorkCompatService.ReportEntry entry = compatService == null ? null : compatService.getEntry(taskId);
+            if (entry != null) {
+                out.append(" {detector=").append(entry.level()).append(", reason=")
+                        .append(entry.reason()).append('}');
+            }
         }
         out.append('.');
     }

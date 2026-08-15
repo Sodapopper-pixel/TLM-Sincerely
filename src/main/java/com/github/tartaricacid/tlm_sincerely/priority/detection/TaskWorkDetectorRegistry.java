@@ -66,20 +66,34 @@ public final class TaskWorkDetectorRegistry {
     }
 
     public static synchronized TaskWorkDetector resolve(IMaidTask task) {
+        return resolveWithSource(task).detector();
+    }
+
+    /** Resolves a detector together with the evidence source used by B0 reports. */
+    public static synchronized DetectorResolution resolveWithSource(IMaidTask task) {
         TaskWorkDetector exact = UID_DETECTORS.get(task.getUid());
         if (exact != null && exact.supports(task)) {
-            return exact;
+            return new DetectorResolution(exact, DetectorSource.EXACT);
         }
         for (Map.Entry<Class<?>, TaskWorkDetector> entry : FALLBACK_DETECTORS.entrySet()) {
             if (entry.getKey().isInstance(task) && entry.getValue().supports(task)) {
-                return entry.getValue();
+                return new DetectorResolution(entry.getValue(), DetectorSource.FALLBACK);
             }
         }
-        return UNKNOWN_DETECTOR;
+        return new DetectorResolution(UNKNOWN_DETECTOR, DetectorSource.NONE);
     }
 
     /** Returns whether {@code detector} is the safe no-detector fallback. */
     public static boolean isUnknown(TaskWorkDetector detector) {
         return detector == UNKNOWN_DETECTOR;
+    }
+
+    public enum DetectorSource {
+        EXACT,
+        FALLBACK,
+        NONE
+    }
+
+    public record DetectorResolution(TaskWorkDetector detector, DetectorSource source) {
     }
 }

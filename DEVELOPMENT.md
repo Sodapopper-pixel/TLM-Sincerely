@@ -272,9 +272,48 @@ Mixin 0.8.5 最大支持 `JAVA_13`，不能写 `JAVA_17`。写错会导致 Mixin
  - 解决：在 `AbstractMaidContainerGuiMixin` 中对 `renderTooltip` HEAD 注入空值保护
 
 ### FMLCommonSetupEvent 必须注册到 mod event bus
- - `SincerelyExtension` 构造器中的 `MinecraftForge.EVENT_BUS` 是 Forge 事件总线，不会收到 `FMLCommonSetupEvent`
- - 必须显式 `FMLJavaModLoadingContext.get().getModEventBus().addListener(this::onCommonSetup)`
- - 否则 `AutoWorkNetworking.register()` 永远不执行，channel 为 null
+  - `SincerelyExtension` 构造器中的 `MinecraftForge.EVENT_BUS` 是 Forge 事件总线，不会收到 `FMLCommonSetupEvent`
+  - 必须显式 `FMLJavaModLoadingContext.get().getModEventBus().addListener(this::onCommonSetup)`
+  - 否则 `AutoWorkNetworking.register()` 永远不执行，channel 为 null
+
+### Compat 报告点击命令对玩家也需开放
+  - 默认 `/tlmautowork` 根命令要求权限 2，但兼容报告是 **阅读型** 入口，分类计数点击按钮继承根权限 → 普通玩家点不动
+  - **解法**：根命令去掉 `requires` 限制，把 `requires(2)` 移到具体管理子命令（`blacklist`、`whitelist`、`set reminder`、`reload`）
+  - 旧聊天中的 `/tlmautowork compat report <page>` 链接仍能直接点击
+  - 警示：根命令放空权限后，OP 只能从“查看报告”点出，**改名单仍需 OP**；需要双重检查 Brigadier literal 分支
+
+### 决策引擎不能被"当前任务 UNKNOWN"无条件阻断
+  - **症状**：自动工作完全失效；女仆有确认过的 `AVAILABLE` 候选，仍不切换
+  - **根因**：`TaskSwitchDecisionEngine.evaluateNormalSwitch` 中两处 `UNKNOWN → return` 分支会无视候选
+    - `:118` `EXTERNAL_UNKNOWN_CURRENT`：当前任务不在 preset 且非 idle
+    - `:133`：当前任务在 preset 但 `UNKNOWN`（无 Detector / 兼容策略排除 / 扫描中）
+  - **解法（平衡）**：
+    1. preset 外 UNKNOWN → 自动工作已启用 + 候选确认 → 允许接管，reason `EXTERNAL_UNKNOWN_REPLACED`
+    2. preset 内 UNKNOWN 但仍可用 → 仅当候选更高优先级可切换，reason `HIGHER_PRIORITY_OVER_UNKNOWN`
+    3. preset 内已失效（未注册/disabled/被兼容策略排除）→ 任意确认候选可替换，reason `CURRENT_UNSUPPORTED_OR_DISABLED`
+    4. 保留 AVAILABLE 优先级保护 + UNAVAILABLE 确认次数 + 反向切换冷却
+  - **诊断依据**：将成功切换日志从 DEBUG 提升到 INFO，方便直接观察；reason 字段改为可读枚举（`CURRENT_AVAILABLE`/`HIGHER_PRIORITY_AVAILABLE`/`CURRENT_UNAVAILABLE_CONFIRMING`/`CURRENT_UNKNOWN_KEEP`/`EXTERNAL_CURRENT_REPLACED` 等）
+
+### TaskScanCursor.matches 不应比较 center（follow 模式）
+  - **症状**：跟随模式下女仆每移动 4 格就重置整个增量扫描，扫描永完不成
+  - **根因**：`matches()` 包含 `center.equals(newCenter)` 或距离比较；非 Home 时 center 随女仆移动变化，每 tick matches 失败 → cursor 重新 start → ring=0
+  - **解法**：`matches()` 只比较 `homeMode/horizontalRange/verticalRange`，不比较 center
+  - **代价**：cursor 中心在扫描开始时固定，整轮不刷新；正确语义是"扫完这一轮再换中心"，而不是"持续追踪新位置"
+  - **联动**：`PATH_BUDGET_EXHAUSTED` 时保存 `cursor.next()`（跳过当前候选），避免密集候选区（树冠、农场）反复卡在同一位置
+
+### MSK 公共 Handler API 与 `IFarmTask` 不能互通
+  - **症状**：maidsoulkitchen 0.3.0.9 的 `TaskBerryFarm`/`TaskFruitFarm` 继承自己 `ICompatFarmTask<Handler>`，不是 TLM `IFarmTask` → `instanceof IFarmTask` 检测器恒为 false
+  - **根因**：MSK 农场任务用动态 Handler 责任链，但历史代理按 TLM `IFarmTask` 写判定，永远不命中
+  - **解法**：
+    1. `supports()` 改为 `task instanceof ICompatFarmTask<?>`；handler 链通过 `ICompatFarmTask.getCompatHandler(maid)` 读取
+    2. `compileOnly` MSK deobf JAR，避免 `runtimeOnly` 缺失时崩服
+    3. Bootstrap 注册时对 `ICompatFarmTask`/`ICompatFarmHandler`/`BerryFruitData` 三个类做 `Class.forName` 存在性检查
+  - **副作用**：`getCompatHandler` 可能构建静态 Handler 集合，缓存 handler 引用避免反复构造；版本变化时**只读取** `canHarvest`，禁止写 Brain 缓存
+
+### 资源反向反编译残留物不要提交
+  - 调研时为了字节码证据会在 `studio/`、`com/`、`META-INF/` 临时解压依赖 JAR
+  - `.gitignore` 必须显式忽略这些目录；本轮补 `/studio/`、`/com/`、`/META-INF/`、`/assets/`、`/data/`
+  - 提交前 `git status` 检查是否有新未追踪的 `*.class`、`.class.json`、附属 mod 资源目录
 
 ## 测试流程
 

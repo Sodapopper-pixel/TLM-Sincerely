@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -75,7 +76,7 @@ public final class AutoWorkStateService {
 
     public void setPresetId(EntityMaid maid, UUID presetId) {
         AutoWorkState current = getState(maid);
-        if (current.presetId().equals(presetId)) {
+        if (Objects.equals(current.presetId(), presetId)) {
             return;
         }
         AutoWorkPresetService presetService = AutoWorkPresetService.getOrNull(server);

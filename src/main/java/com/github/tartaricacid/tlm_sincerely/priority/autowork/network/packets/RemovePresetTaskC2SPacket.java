@@ -1,6 +1,7 @@
 package com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets;
 
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPresetService;
+import com.github.tartaricacid.tlm_sincerely.priority.TaskAutoSwitchHandler;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkPermission;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkServerHandler;
 import net.minecraft.network.FriendlyByteBuf;
@@ -56,6 +57,7 @@ public final class RemovePresetTaskC2SPacket {
                         msg.presetId, msg.taskId);
                 return;
             }
+            TaskAutoSwitchHandler.requestPresetRescan(sender.server, msg.presetId, "REMOVE_PRESET_TASK");
             AutoWorkServerHandler.sendSnapshot(sender);
         });
         ctx.get().setPacketHandled(true);
