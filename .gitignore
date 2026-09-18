@@ -7,15 +7,18 @@
 *.jar
 !gradle/wrapper/*.jar
 
-# Generated IDE/Kilo state
-/.kilo/node_modules/
-/.kilo/plans/
-/.kilo/skills/
+# Generated IDE/Kilo state（整个 .kilo 为本地 Agent 状态，不入库）
+/.kilo/
 
 # Historical / generated class output (never version source copies here)
 /bin/
 
 # Dependency decompile / extractor output (used during research)
+# Compiled Java class files
+*.class
+# Generated build output directories at repo root
+/net/
+
 /wiki-reference/
 /gui-textures/
 /com/
@@ -29,3 +32,6 @@
 /mod_task_clazz.json
 /pack.mcmeta
 /task_compat.txt
+
+# 研究用临时输出
+/cd.txt

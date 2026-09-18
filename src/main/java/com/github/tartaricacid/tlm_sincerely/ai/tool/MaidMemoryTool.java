@@ -5,6 +5,7 @@ import com.github.tartaricacid.tlm_sincerely.memory.MaidMemory;
 import com.github.tartaricacid.tlm_sincerely.memory.MaidMemoryManager;
 import com.github.tartaricacid.tlm_sincerely.memory.MaidMemory.MemoryEntry;
 import com.github.tartaricacid.tlm_sincerely.memory.MemoryMaintenanceManager;
+import com.github.tartaricacid.tlm_sincerely.memory.MemoryChatTracker;
 import com.github.tartaricacid.touhoulittlemaid.ai.agent.tool.ITool;
 import com.github.tartaricacid.touhoulittlemaid.ai.manager.entity.LLMCallback;
 import com.github.tartaricacid.touhoulittlemaid.ai.service.function.schema.parameter.ArrayParameter;
@@ -105,9 +106,13 @@ public class MaidMemoryTool implements ITool<MaidMemoryTool.Result> {
 
         EntityMaid maid = callback.getMaid();
 
+        boolean maintenanceCallback = MemoryChatTracker.isMaintenance(callback);
+        if (maintenanceCallback && !MemoryMaintenanceManager.isMaintaining(maid.getUUID())) {
+            return callback.addToolResult("Memory maintenance request expired; no changes were applied.", toolCallId);
+        }
         if (MemoryMaintenanceManager.isMaintaining(maid.getUUID())) {
             MemoryMaintenanceManager.recordToolActivity(maid.getUUID());
-            if (!MAINTENANCE_ACTIONS.contains(result.action())) {
+            if (!maintenanceCallback) {
                 return callback.addToolResult(MAINTENANCE_MSG, toolCallId);
             }
         }
@@ -161,13 +166,17 @@ public class MaidMemoryTool implements ITool<MaidMemoryTool.Result> {
             String evictedKey = oldestArchive.get();
             memory.forget(evictedKey);
             memory.set(result.key(), result.value(), result.importance(), getSource(maid));
-            MaidMemoryManager.save(maid.getUUID(), memory);
+            if (!MaidMemoryManager.save(maid.getUUID(), memory)) {
+                return "Memory save failed after eviction. Please try again.";
+            }
             return "Remembered '%s' = \"%s\" (%s). Evicted oldest archive '%s' to make room.".formatted(
                     result.key(), result.value(), result.importance(), evictedKey);
         }
 
         memory.set(result.key(), result.value(), result.importance(), getSource(maid));
-        MaidMemoryManager.save(maid.getUUID(), memory);
+        if (!MaidMemoryManager.save(maid.getUUID(), memory)) {
+            return "Memory save failed. Please try again.";
+        }
         return "Remembered '%s' = \"%s\" (%s)".formatted(result.key(), result.value(), result.importance());
     }
 
@@ -185,7 +194,9 @@ public class MaidMemoryTool implements ITool<MaidMemoryTool.Result> {
         }
 
         memory.touch(result.key());
-        MaidMemoryManager.save(maid.getUUID(), memory);
+        if (!MaidMemoryManager.save(maid.getUUID(), memory)) {
+            return "Memory touch save failed. Please try again.";
+        }
 
         MemoryEntry mem = entry.get();
         String output = "[%s] %s: %s".formatted(mem.importance(), result.key(), mem.value());
@@ -208,7 +219,9 @@ public class MaidMemoryTool implements ITool<MaidMemoryTool.Result> {
         }
 
         memory.forget(result.key());
-        MaidMemoryManager.save(maid.getUUID(), memory);
+        if (!MaidMemoryManager.save(maid.getUUID(), memory)) {
+            return "Memory forget save failed. Please try again.";
+        }
         return "Forgot memory '%s'".formatted(result.key());
     }
 
@@ -278,7 +291,9 @@ public class MaidMemoryTool implements ITool<MaidMemoryTool.Result> {
             memory.forget(tk);
         }
         memory.set(targetKey, result.value(), MemoryEntry.ARCHIVE, getSource(maid));
-        MaidMemoryManager.save(maid.getUUID(), memory);
+        if (!MaidMemoryManager.save(maid.getUUID(), memory)) {
+            return "Memory merge save failed. Please try again.";
+        }
 
         MemoryMaintenanceManager.logMerge(maid.getUUID(), trimmedKeys, targetKey);
 

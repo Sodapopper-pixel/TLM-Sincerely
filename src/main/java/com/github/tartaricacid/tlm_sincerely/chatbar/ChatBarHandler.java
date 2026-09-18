@@ -18,6 +18,8 @@ import java.util.regex.Pattern;
 public final class ChatBarHandler {
     private static final String DEFAULT_LANGUAGE = "en_us";
     private static final Pattern AT_PATTERN = Pattern.compile("^@(.+?)\\s+(.+)$");
+    private static volatile String cachedPrefix = "";
+    private static volatile Pattern cachedPrefixPattern;
 
     @SubscribeEvent
     public static void onServerChat(ServerChatEvent event) {
@@ -31,30 +33,35 @@ public final class ChatBarHandler {
         String prefix = ChatBarConfig.PREFIX_PATTERN.get();
         EntityMaid targetMaid = null;
         String chatMessage = rawMessage;
+        boolean prefixUsed = false;
 
-        // 1. 始终尝试解析 @前缀
-        Pattern pattern = Pattern.compile("^" + Pattern.quote(prefix) + "(.+?)\\s+(.+)$");
-        Matcher matcher = pattern.matcher(rawMessage);
-        if (matcher.find()) {
-            String name = matcher.group(1);
-            chatMessage = matcher.group(2);
-            MaidFinder.FindResult result = MaidFinder.findByName(player, name);
-            if (result.hasMaid()) {
-                targetMaid = result.maid();
-                if (result.hasMultipleMatches()) {
-                    String uuidShort = targetMaid.getUUID().toString().substring(0, 8);
-                    player.sendSystemMessage(Component.translatable(
-                            "chat.tlm_sincerely.multiple_same_name", name, uuidShort
-                    ).withStyle(ChatFormatting.YELLOW));
+        // 1. Always try explicit prefix first.
+        if (prefix != null && !prefix.isEmpty()) {
+            Pattern pattern = getPrefixPattern(prefix);
+            Matcher matcher = pattern.matcher(rawMessage);
+            if (matcher.find()) {
+                prefixUsed = true;
+                String name = matcher.group(1);
+                chatMessage = matcher.group(2);
+                MaidFinder.FindResult result = MaidFinder.findByName(player, name);
+                if (result.hasMaid()) {
+                    targetMaid = result.maid();
+                    if (result.hasMultipleMatches()) {
+                        String uuidShort = targetMaid.getUUID().toString().substring(0, 8);
+                        player.sendSystemMessage(Component.translatable(
+                                "chat.tlm_sincerely.multiple_same_name", name, uuidShort
+                        ).withStyle(ChatFormatting.YELLOW));
+                    }
+                } else {
+                    player.sendSystemMessage(Component.translatable("chat.tlm_sincerely.maid_not_found")
+                            .withStyle(ChatFormatting.RED));
                 }
-            } else {
-                player.sendSystemMessage(Component.translatable("chat.tlm_sincerely.maid_not_found")
-                        .withStyle(ChatFormatting.RED));
             }
         }
 
-        // 2. 无前缀消息 + REQUIRE_PREFIX=false → 自动匹配最近女仆
-        if (targetMaid == null && !ChatBarConfig.REQUIRE_PREFIX.get()) {
+        // 2. No-prefix message + REQUIRE_PREFIX=false → auto-match nearest maid
+        // ONLY when the configured prefix was not explicitly used.
+        if (targetMaid == null && !ChatBarConfig.REQUIRE_PREFIX.get() && !prefixUsed) {
             double range = ChatBarConfig.AUTO_CHAT_RANGE.get();
             if (range > 0) {
                 List<EntityMaid> maids = MaidFinder.getOwnedMaids(player, range);
@@ -76,6 +83,22 @@ public final class ChatBarHandler {
                 );
                 player.sendSystemMessage(Component.literal(format).withStyle(ChatFormatting.GRAY));
             }
+        }
+    }
+
+    private static Pattern getPrefixPattern(String prefix) {
+        Pattern pattern = cachedPrefixPattern;
+        if (pattern != null && prefix.equals(cachedPrefix)) {
+            return pattern;
+        }
+        synchronized (ChatBarHandler.class) {
+            pattern = cachedPrefixPattern;
+            if (pattern != null && prefix.equals(cachedPrefix)) {
+                return pattern;
+            }
+            cachedPrefix = prefix;
+            cachedPrefixPattern = Pattern.compile("^" + Pattern.quote(prefix) + "(.+?)\\s+(.+)$");
+            return cachedPrefixPattern;
         }
     }
 

@@ -3,8 +3,10 @@ package com.github.tartaricacid.tlm_sincerely.memory;
 import com.github.tartaricacid.tlm_sincerely.config.subconfig.MemoryConfig;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -15,6 +17,15 @@ public class MaidMemory {
     public MaidMemory() {
         this.memories = new LinkedHashMap<>();
         this.lastTidyAt = 0;
+    }
+
+    private MaidMemory(Map<String, MemoryEntry> memories, long lastTidyAt) {
+        this.memories = new LinkedHashMap<>(memories);
+        this.lastTidyAt = lastTidyAt;
+    }
+
+    public MaidMemory copy() {
+        return new MaidMemory(memories, lastTidyAt);
     }
 
     public void set(String key, String value, String importance) {
@@ -92,7 +103,11 @@ public class MaidMemory {
     }
 
     public Map<String, MemoryEntry> getMemories() {
-        return memories;
+        return Collections.unmodifiableMap(memories);
+    }
+
+    void putEntry(String key, MemoryEntry entry) {
+        memories.put(key, entry);
     }
 
     public Optional<String> findOldestArchiveKey() {
@@ -105,11 +120,11 @@ public class MaidMemory {
     }
 
     public List<Map.Entry<String, MemoryEntry>> search(String query) {
-        String lowerQuery = query.toLowerCase();
+        String lowerQuery = query.toLowerCase(Locale.ROOT);
         List<Map.Entry<String, MemoryEntry>> results = new ArrayList<>();
         for (Map.Entry<String, MemoryEntry> entry : memories.entrySet()) {
-            if (entry.getKey().toLowerCase().contains(lowerQuery)
-                    || entry.getValue().value().toLowerCase().contains(lowerQuery)) {
+            if (entry.getKey().toLowerCase(Locale.ROOT).contains(lowerQuery)
+                    || entry.getValue().value().toLowerCase(Locale.ROOT).contains(lowerQuery)) {
                 results.add(entry);
                 if (results.size() >= 10) {
                     break;

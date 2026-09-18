@@ -3,6 +3,7 @@ package com.github.tartaricacid.tlm_sincerely.memory;
 import com.github.tartaricacid.tlm_sincerely.config.subconfig.MemoryConfig;
 import com.github.tartaricacid.tlm_sincerely.memory.MaidMemory.MemoryEntry;
 import com.github.tartaricacid.touhoulittlemaid.ai.manager.entity.ChatClientInfo;
+import com.github.tartaricacid.touhoulittlemaid.ai.service.llm.LLMMessage;
 import com.github.tartaricacid.touhoulittlemaid.ai.service.llm.LLMSite;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import net.minecraft.server.MinecraftServer;
@@ -13,12 +14,15 @@ import net.minecraft.world.entity.LivingEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingDeque;
 
 public final class MemoryMaintenanceManager {
     private static final Logger LOGGER = LogManager.getLogger("TLM_Sincerely/Memory");
@@ -27,11 +31,11 @@ public final class MemoryMaintenanceManager {
     private static final Set<UUID> pendingTidy = ConcurrentHashMap.newKeySet();
 
     private static final Map<UUID, Long> tidyStartTime = new ConcurrentHashMap<>();
-    private static final Map<UUID, Integer> historySnapshotSize = new ConcurrentHashMap<>();
-    private static final Map<UUID, Long> lastToolActivity = new ConcurrentHashMap<>();
+    private static final Map<UUID, Set<LLMMessage>> historySnapshot = new ConcurrentHashMap<>();
+
+    static final ThreadLocal<Boolean> INTERNAL_MAINTENANCE_CALL = ThreadLocal.withInitial(() -> false);
 
     private static final long TIDY_TIMEOUT_MS = 120_000;
-    private static final long TOOL_IDLE_THRESHOLD_MS = 30_000;
 
     private static int tickCounter = 0;
 
@@ -44,6 +48,10 @@ public final class MemoryMaintenanceManager {
             If nothing needs merging, reply exactly "No maintenance needed." and make no tool calls.""";
 
     private MemoryMaintenanceManager() {
+    }
+
+    public static boolean isInternalMaintenanceCall() {
+        return INTERNAL_MAINTENANCE_CALL.get();
     }
 
     public static boolean isMaintaining(UUID maidUuid) {
@@ -70,9 +78,7 @@ public final class MemoryMaintenanceManager {
     }
 
     public static void recordToolActivity(UUID maidUuid) {
-        if (isMaintaining(maidUuid)) {
-            lastToolActivity.put(maidUuid, System.currentTimeMillis());
-        }
+        // Callback identity, not idle timing, is authoritative for completion.
     }
 
     public static void logMerge(UUID maidUuid, List<String> sourceKeys, String targetKey) {
@@ -90,7 +96,13 @@ public final class MemoryMaintenanceManager {
                 it.remove();
                 EntityMaid maid = findMaid(server, uuid);
                 if (maid != null) {
-                    startTidy(maid);
+                    MemoryChatTracker.reconcilePendingSubmission(uuid,
+                            maid.getAiChatManager().historySummaryRunning);
+                    if (MemoryChatTracker.hasOrdinaryInFlight(uuid)) {
+                        pendingTidy.add(uuid);
+                    } else {
+                        startTidy(maid);
+                    }
                 }
             }
         }
@@ -101,16 +113,11 @@ public final class MemoryMaintenanceManager {
             while (it.hasNext()) {
                 UUID uuid = it.next();
                 Long startTime = tidyStartTime.get(uuid);
-                Long lastActivity = lastToolActivity.get(uuid);
-
                 boolean timeout = startTime != null && (now - startTime) > TIDY_TIMEOUT_MS;
-                boolean idle = lastActivity != null && (now - lastActivity) > TOOL_IDLE_THRESHOLD_MS;
-
-                if (timeout || (idle && startTime != null)) {
-                    if (timeout) {
-                        LOGGER.warn("Maid {} memory maintenance timed out, force finishing", uuid);
-                    }
-                    finishTidy(server, uuid);
+                if (timeout) {
+                    LOGGER.warn("Maid {} memory maintenance timed out, terminating this maintenance generation", uuid);
+                    finishTidy(server, uuid, true);
+                    MemoryChatTracker.releaseMaintenanceChain(uuid);
                 }
             }
         }
@@ -139,8 +146,9 @@ public final class MemoryMaintenanceManager {
         maintainingMaids.add(uuid);
         long now = System.currentTimeMillis();
         tidyStartTime.put(uuid, now);
-        lastToolActivity.put(uuid, now);
-        historySnapshotSize.put(uuid, maid.getAiChatManager().getHistory().size());
+        Set<LLMMessage> originalHistory = Collections.newSetFromMap(new IdentityHashMap<>());
+        originalHistory.addAll(maid.getAiChatManager().getHistory().getDeque());
+        historySnapshot.put(uuid, originalHistory);
 
         MaidMemory memory = MaidMemoryManager.load(maid.getUUID());
         StringBuilder archiveList = new StringBuilder();
@@ -160,22 +168,25 @@ public final class MemoryMaintenanceManager {
         ChatClientInfo clientInfo = new ChatClientInfo(language, maid.getName().getString(), List.of());
 
         LOGGER.info("Maid {} starting memory maintenance", uuid);
-        maid.getAiChatManager().chat(tidyPrompt, clientInfo, player);
+        INTERNAL_MAINTENANCE_CALL.set(true);
+        try {
+            maid.getAiChatManager().chat(tidyPrompt, clientInfo, player);
+        } finally {
+            INTERNAL_MAINTENANCE_CALL.remove();
+        }
     }
 
-    private static void finishTidy(MinecraftServer server, UUID uuid) {
+    private static void finishTidy(MinecraftServer server, UUID uuid, boolean callbackCompleted) {
         EntityMaid maid = findMaid(server, uuid);
 
         if (maid != null) {
-            Integer snapshotSize = historySnapshotSize.get(uuid);
-            if (snapshotSize != null) {
-                var deque = maid.getAiChatManager().getHistory().getDeque();
-                int currentSize = deque.size();
-                int toRemove = currentSize - snapshotSize;
-                for (int i = 0; i < toRemove && !deque.isEmpty(); i++) {
-                    deque.pollLast();
-                }
-                LOGGER.info("Maid {} maintenance finished, removed {} history entries", uuid, toRemove);
+            Set<LLMMessage> originalHistory = historySnapshot.get(uuid);
+            if (originalHistory != null) {
+                LinkedBlockingDeque<LLMMessage> deque = maid.getAiChatManager().getHistory().getDeque();
+                int before = deque.size();
+                deque.removeIf(message -> !originalHistory.contains(message));
+                LOGGER.info("Maid {} maintenance finished, removed {} history entries",
+                        uuid, before - deque.size());
             }
         }
 
@@ -185,8 +196,26 @@ public final class MemoryMaintenanceManager {
 
         maintainingMaids.remove(uuid);
         tidyStartTime.remove(uuid);
-        historySnapshotSize.remove(uuid);
-        lastToolActivity.remove(uuid);
+        historySnapshot.remove(uuid);
+    }
+
+    /** Completes maintenance after the full asynchronous LLM/tool callback chain ends. */
+    public static void onMaintenanceCallbackCompleted(EntityMaid maid) {
+        if (!(maid.level() instanceof ServerLevel level) || !historySnapshot.containsKey(maid.getUUID())) {
+            return;
+        }
+        finishTidy(level.getServer(), maid.getUUID(), true);
+        MemoryChatTracker.releaseMaintenanceChain(maid.getUUID());
+    }
+
+    public static void clearRuntimeState() {
+        maintainingMaids.clear();
+        pendingTidy.clear();
+        tidyStartTime.clear();
+        historySnapshot.clear();
+        MemoryChatTracker.clear();
+        tickCounter = 0;
+        LOGGER.info("MemoryMaintenanceManager cleared runtime state");
     }
 
     private static EntityMaid findMaid(MinecraftServer server, UUID uuid) {

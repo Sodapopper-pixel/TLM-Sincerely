@@ -32,7 +32,12 @@ public record TaskScanCursor(
     }
 
     public boolean matches(BlockPos newCenter, boolean newHomeMode, int newHorizontalRange, int newVerticalRange) {
-        return homeMode == newHomeMode && horizontalRange == newHorizontalRange && verticalRange == newVerticalRange;
+        return homeMode == newHomeMode
+                && horizontalRange == newHorizontalRange
+                && verticalRange == newVerticalRange
+                // Follow mode re-centers on the walking maid every tick, so the center is
+                // expected to move; home mode must restart when the anchor is re-set.
+                && (!newHomeMode || center.equals(newCenter));
     }
 
     public BlockPos currentPos() {

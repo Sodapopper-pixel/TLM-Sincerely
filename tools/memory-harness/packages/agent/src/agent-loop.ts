@@ -77,6 +77,7 @@ export interface AgentLoopDeps {
   ctx: ToolContext;
   systemPrompt: string;
   loopConfig: AgentLoopConfig;
+  signal?: AbortSignal;
   emit: (event: AgentLoopEvent) => void;
 }
 
@@ -170,7 +171,16 @@ export async function runAgentLoop(
   let error: string | undefined;
 
   while (true) {
-    const resp = await deps.transport.chat(messages, tools, { temperature: deps.loopConfig.temperature });
+    if (deps.signal?.aborted) {
+      error = "aborted";
+      deps.emit({ type: "error", message: error });
+      break;
+    }
+
+    const resp = await deps.transport.chat(messages, tools, {
+      temperature: deps.loopConfig.temperature,
+      signal: deps.signal,
+    });
     if (resp.usage) {
       promptTokens += resp.usage.prompt_tokens ?? 0;
       completionTokens += resp.usage.completion_tokens ?? 0;
@@ -205,6 +215,11 @@ export async function runAgentLoop(
 
     messages.push({ role: "assistant", content: resp.content, tool_calls: deduped });
     for (const call of deduped) {
+      if (deps.signal?.aborted) {
+        error = "aborted";
+        deps.emit({ type: "error", message: error });
+        break;
+      }
       deps.emit({ type: "tool_call", id: call.id, name: call.function.name, arguments: call.function.arguments });
       const result = executeToolCall(call, deps);
       messages.push({
@@ -218,6 +233,9 @@ export async function runAgentLoop(
       if (result.memoryDiff) {
         deps.emit({ type: "memory_diff", diff: result.memoryDiff });
       }
+    }
+    if (deps.signal?.aborted) {
+      break;
     }
   }
 

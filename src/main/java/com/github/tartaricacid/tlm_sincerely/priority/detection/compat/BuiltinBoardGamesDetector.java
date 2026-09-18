@@ -72,6 +72,12 @@ public final class BuiltinBoardGamesDetector implements TaskWorkDetector {
             return true;
         }
         UUID sitter = board.getSitId();
+        if (sitter != null && sitter.equals(maid.getUUID())) {
+            // The maid is playing on this board right now: the riding job is
+            // still available, so the scheduler keeps her seated instead of
+            // switching away and dismounting.
+            return true;
+        }
         return sitter == null || context.level().getEntity(sitter) == null;
     }
 

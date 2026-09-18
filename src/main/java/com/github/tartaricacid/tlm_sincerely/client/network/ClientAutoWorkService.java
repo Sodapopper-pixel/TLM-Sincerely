@@ -2,10 +2,10 @@ package com.github.tartaricacid.tlm_sincerely.client.network;
 
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkSnapshot;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.RequestAutoWorkSnapshotC2SPacket;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -110,26 +110,17 @@ public final class ClientAutoWorkService {
         return Optional.empty();
     }
 
-    /** Returns the cached entry for a preset, or empty if not present. */
-    public Optional<AutoWorkSnapshot.PresetEntry> findPreset(UUID presetId) {
+    /** Returns the cached compat entry for a task, or empty if not present. */
+    public Optional<AutoWorkSnapshot.CompatEntry> findCompat(ResourceLocation taskUid) {
         AutoWorkSnapshot s = this.snapshot;
-        if (s == null) {
+        if (s == null || taskUid == null) {
             return Optional.empty();
         }
-        for (AutoWorkSnapshot.PresetEntry entry : s.presets()) {
-            if (entry.id().equals(presetId)) {
+        for (AutoWorkSnapshot.CompatEntry entry : s.compatEntries()) {
+            if (taskUid.equals(entry.taskUid())) {
                 return Optional.of(entry);
             }
         }
         return Optional.empty();
-    }
-
-    /** Read-only view of the preset library. */
-    public List<AutoWorkSnapshot.PresetEntry> presets() {
-        AutoWorkSnapshot s = this.snapshot;
-        if (s == null) {
-            return Collections.emptyList();
-        }
-        return Collections.unmodifiableList(s.presets());
     }
 }

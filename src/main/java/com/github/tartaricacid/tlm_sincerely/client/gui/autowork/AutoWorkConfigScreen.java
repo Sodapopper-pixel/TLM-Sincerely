@@ -1,15 +1,11 @@
 package com.github.tartaricacid.tlm_sincerely.client.gui.autowork;
 
+import com.github.tartaricacid.tlm_sincerely.client.autowork.AutoWorkClientLibrary;
 import com.github.tartaricacid.tlm_sincerely.client.network.ClientAutoWorkService;
+import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPreset;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.menu.AutoWorkConfigContainer;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkNetworking;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkSnapshot;
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.AddPresetTaskC2SPacket;
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.CreatePresetC2SPacket;
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.DeletePresetC2SPacket;
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.MovePresetTaskC2SPacket;
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.RemovePresetTaskC2SPacket;
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.RenamePresetC2SPacket;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.SetMaidAutoWorkPresetC2SPacket;
 import com.github.tartaricacid.touhoulittlemaid.api.task.IMaidTask;
 import com.github.tartaricacid.touhoulittlemaid.client.gui.entity.maid.AbstractMaidContainerGui;
@@ -24,22 +20,16 @@ import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
- * Independent auto work configuration screen, opened when the player
- * requests the standalone auto work container.
+ * Independent auto work configuration screen.
  *
- * <p>Layout follows {@code wiki-reference/gui-textures/纹理标注.md}:
- * the right-side panel background is a 1:1 slice of TLM's
- * {@code maid_gui_main.png} at (80, 28) sized 176×137. All sub-layout
- * constants below are panel-relative; the global origin is the top-left
- * of that background texture.
+ * <p>Preset editing writes the local {@link AutoWorkClientLibrary}. While this
+ * maid's config page is open, adding/removing/reordering tasks also re-bakes
+ * the maid's bound snapshot so the running order stays in sync.
  */
 public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfigContainer> {
     private static final Logger LOGGER = LogUtils.getLogger();
@@ -89,12 +79,15 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
 
     /** Listener for {@link ClientAutoWorkService} snapshot updates. */
     private final Consumer<AutoWorkSnapshot> snapshotListener = snapshot -> dirty = true;
+    /** Listener for local library edits (e.g. a pushed preset applied while open). */
+    private final Runnable libraryListener = () -> dirty = true;
 
-    // Cached state that depends on the current snapshot.
+    // Cached state that depends on the current snapshot / library.
     private AutoWorkSnapshot observedSnapshot;
     private UUID activePresetId;
     private boolean dirty = true;
     private boolean snapshotListenerRegistered;
+    private boolean libraryListenerRegistered;
 
     // Local UI state.
     private int leftScroll;
@@ -106,10 +99,13 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
     private int orderedTaskCount;
     private ScrollColumn draggingScrollColumn = ScrollColumn.NONE;
     private boolean diagnosticsLogged;
-    /** Last name sent to the server for the active preset. Guards the
-     *  responder against re-sending unchanged values and against the
+    /** Last name written to the local library for the active preset. Guards the
+     *  responder against re-submitting unchanged values and against the
      *  initial {@code setValue} during rebuild. */
     private String lastSubmittedRename = "";
+    private int renameDebounceFrames = 0;
+    private String pendingRename = "";
+    private static final int RENAME_DEBOUNCE_FRAMES = 40;
 
     public AutoWorkConfigScreen(AutoWorkConfigContainer menu, net.minecraft.world.entity.player.Inventory inv,
                                 Component title) {
@@ -119,14 +115,17 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
     @Override
     protected void init() {
         super.init();
+        AutoWorkClientLibrary.get().ensureLoaded();
         ClientAutoWorkService.get().requestRefresh();
         observedSnapshot = ClientAutoWorkService.get().snapshotOrNull();
-        if (observedSnapshot != null) {
-            resolveMaidEntry().ifPresent(entry -> activePresetId = entry.presetId());
-        }
+        activePresetId = resolveInitialPreset();
         if (!snapshotListenerRegistered) {
             ClientAutoWorkService.get().addListener(snapshotListener);
             snapshotListenerRegistered = true;
+        }
+        if (!libraryListenerRegistered) {
+            AutoWorkClientLibrary.get().addListener(libraryListener);
+            libraryListenerRegistered = true;
         }
         rebuildAutoWorkWidgets();
     }
@@ -136,6 +135,13 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
         if (snapshotListenerRegistered) {
             ClientAutoWorkService.get().removeListener(snapshotListener);
             snapshotListenerRegistered = false;
+        }
+        if (libraryListenerRegistered) {
+            AutoWorkClientLibrary.get().removeListener(libraryListener);
+            libraryListenerRegistered = false;
+        }
+        if (renameDebounceFrames > 0) {
+            submitPendingRename();
         }
         super.removed();
     }
@@ -219,24 +225,16 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
     protected void renderAddition(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         super.renderAddition(graphics, mouseX, mouseY, partialTicks);
 
+        if (renameDebounceFrames > 0) {
+            renameDebounceFrames--;
+            if (renameDebounceFrames == 0) {
+                submitPendingRename();
+            }
+        }
+
         AutoWorkSnapshot current = ClientAutoWorkService.get().snapshotOrNull();
         if (current != observedSnapshot) {
             observedSnapshot = current;
-            // The server is authoritative for the maid's active preset. This
-            // includes the new-preset flow, which atomically binds the maid to
-            // the freshly created UUID before it returns this snapshot.
-            // Clear the selection only when the active preset actually changed;
-            // snapshot updates within the same preset (task move/rename, edits
-            // by other operators) must keep the selection by task UID. A stale
-            // selection is cleared later during rebuild, when the task is no
-            // longer found in the preset order.
-            resolveMaidEntry().ifPresent(entry -> {
-                UUID nextPresetId = entry.presetId();
-                if (!java.util.Objects.equals(nextPresetId, activePresetId)) {
-                    activePresetId = nextPresetId;
-                    selectedTaskId = null;
-                }
-            });
             dirty = true;
         }
         if (dirty) {
@@ -269,7 +267,7 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
         List<AutoWorkPreset> presets = currentPresets();
         int activeIndex = 0;
         for (int i = 0; i < presets.size(); i++) {
-            if (presets.get(i).id().equals(activePresetId)) {
+            if (presets.get(i).getId().equals(activePresetId)) {
                 activeIndex = i + 1;
                 break;
             }
@@ -370,7 +368,7 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
                     panelX + 31, editY, 57, 15,
                     Component.translatable("gui.tlm_sincerely.task.preset.name"));
             renameBox.setMaxLength(32);
-            String presetName = resolveActivePreset().map(AutoWorkPreset::name).orElse("");
+            String presetName = resolveActivePreset().map(AutoWorkPreset::getName).orElse("");
             lastSubmittedRename = presetName;
             renameBox.setValue(presetName);
             renameBox.setResponder(this::onPresetNameChanged);
@@ -382,7 +380,7 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
                 panelX + 18, presetY, 12, 13,
                 AutoWorkBrownButton.TEXTURE_GUI, 84, 0, 14,
                 Component.empty(), button -> cyclePreset(1))));
-        UUID activeId = resolveActivePreset().map(AutoWorkPreset::id).orElse(null);
+        UUID activeId = resolveActivePreset().map(AutoWorkPreset::getId).orElse(null);
         addOwned(addRenderableWidget(new AutoWorkBrownButton(
                 panelX + 89, presetY, 13, 13,
                 AutoWorkBrownButton.TEXTURE_TASK, 127, 0, 14,
@@ -397,8 +395,8 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
         int rightX = panelX + RIGHT_COLUMN_X;
         int rowsY = panelY + ROWS_TOP;
 
-        AutoWorkPreset active = resolveActivePreset().orElse(null);
-        List<ResourceLocation> order = active == null ? List.of() : active.order();
+        List<ResourceLocation> order = resolveActivePreset()
+                .map(AutoWorkPreset::getOrder).orElse(List.of());
         List<IMaidTask> ordered = new ArrayList<>();
         for (ResourceLocation taskId : order) {
             TaskManager.findTask(taskId).ifPresent(ordered::add);
@@ -408,7 +406,7 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
         for (IMaidTask task : TaskManager.getTaskIndex()) {
             // idle is the "do nothing" fallback, not a real work task, so it
             // must never be part of a preset. Hide it from the addable list;
-            // the server rejects it as well (defense in depth).
+            // the client library rejects it as well (defense in depth).
             if (!order.contains(task.getUid()) && !task.getUid().equals(idleTaskUid)) {
                 available.add(task);
             }
@@ -441,9 +439,9 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
                         AutoWorkBrownButton.TEXTURE_GUI, 97, 0, 17,
                         Component.literal(task.getName().getString()),
                         button -> {
-                            if (presetId != null) {
-                                AutoWorkNetworking.channel().sendToServer(
-                                        new AddPresetTaskC2SPacket(presetId, task.getUid()));
+                            if (presetId != null && AutoWorkClientLibrary.get().addTask(presetId, task.getUid())) {
+                                rebakeActivePreset();
+                                dirty = true;
                             }
                         }, false, task.getIcon(), false, null)));
             }
@@ -498,36 +496,44 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
         return ClientAutoWorkService.get().findMaid(maid.getUUID());
     }
 
-    private boolean containsPreset(UUID presetId) {
-        return ClientAutoWorkService.get().findPreset(presetId).isPresent();
+    private UUID resolveInitialPreset() {
+        AutoWorkClientLibrary library = AutoWorkClientLibrary.get();
+        return resolveMaidEntry()
+                .map(AutoWorkSnapshot.MaidEntry::presetId)
+                .filter(id -> library.getPreset(id) != null)
+                .orElseGet(library::defaultPresetId);
     }
 
     private java.util.Optional<AutoWorkPreset> resolveActivePreset() {
-        List<AutoWorkPreset> presets = currentPresets();
-        for (AutoWorkPreset preset : presets) {
-            if (preset.id().equals(activePresetId)) {
-                return java.util.Optional.of(preset);
-            }
+        AutoWorkClientLibrary library = AutoWorkClientLibrary.get();
+        AutoWorkPreset preset = library.getPreset(activePresetId);
+        if (preset != null) {
+            return java.util.Optional.of(preset);
         }
+        List<AutoWorkPreset> presets = currentPresets();
         if (!presets.isEmpty()) {
-            activePresetId = presets.get(0).id();
+            activePresetId = presets.get(0).getId();
             return java.util.Optional.of(presets.get(0));
         }
         return java.util.Optional.empty();
     }
 
     private List<AutoWorkPreset> currentPresets() {
-        List<AutoWorkPreset> presets = new ArrayList<>();
-        for (AutoWorkSnapshot.PresetEntry entry : ClientAutoWorkService.get().presets()) {
-            presets.add(new AutoWorkPreset(entry.id(), entry.name(), entry.order()));
-        }
-        return presets;
+        return AutoWorkClientLibrary.get().presetsInOrder();
     }
 
     // ---------------------------------------------------------------
-    // C2S actions
+    // Preset / task actions (all client-local)
     // ---------------------------------------------------------------
 
+    /** Writes the active library preset onto this maid's bound snapshot. */
+    private void rebakeActivePreset() {
+        resolveActivePreset().ifPresent(this::applyPresetToMaid);
+    }
+
+    /**
+     * Cycles the selected preset and re-bakes it onto the maid.
+     */
     private void cyclePreset(int delta) {
         List<AutoWorkPreset> presets = currentPresets();
         if (presets.isEmpty()) {
@@ -535,53 +541,66 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
         }
         int current = 0;
         for (int index = 0; index < presets.size(); index++) {
-            if (presets.get(index).id().equals(activePresetId)) {
+            if (presets.get(index).getId().equals(activePresetId)) {
                 current = index;
                 break;
             }
         }
-        UUID next = presets.get(Math.floorMod(current + delta, presets.size())).id();
-        var maid = getMenu().getMaid();
-        if (maid != null) {
-            AutoWorkNetworking.channel().sendToServer(
-                    new SetMaidAutoWorkPresetC2SPacket(maid.getUUID(), next));
-        }
-        activePresetId = next;
+        AutoWorkPreset next = presets.get(Math.floorMod(current + delta, presets.size()));
+        activePresetId = next.getId();
         selectedTaskId = null;
+        applyPresetToMaid(next);
         dirty = true;
     }
 
     private void createPreset() {
         String base = Component.translatable("gui.tlm_sincerely.task.preset.default_name").getString();
-        Set<String> taken = new HashSet<>();
-        for (AutoWorkPreset preset : currentPresets()) {
-            taken.add(preset.name().toLowerCase(Locale.ROOT));
-        }
-        String name = base;
-        for (int suffix = 2; taken.contains(name.toLowerCase(Locale.ROOT)); suffix++) {
-            name = base + " " + suffix;
-        }
-        var maid = getMenu().getMaid();
-        AutoWorkNetworking.channel().sendToServer(new CreatePresetC2SPacket(
-                name, maid == null ? null : maid.getUUID()));
+        AutoWorkPreset created = AutoWorkClientLibrary.get().createPreset(base);
+        activePresetId = created.getId();
+        selectedTaskId = null;
+        applyPresetToMaid(created);
+        dirty = true;
     }
 
-    /** Live-saves the preset name on every change (the confirm button is gone). */
+    /** Sends the full snapshot; the server re-bakes the maid on every call. */
+    private void applyPresetToMaid(AutoWorkPreset preset) {
+        var maid = getMenu().getMaid();
+        if (maid == null) {
+            return;
+        }
+        AutoWorkNetworking.channel().sendToServer(new SetMaidAutoWorkPresetC2SPacket(
+                maid.getUUID(), preset.getId(), preset.getName(), preset.getOrder()));
+    }
+
+    /** Debounced rename: only writes to the local library after a short frame delay. */
     private void onPresetNameChanged(String value) {
         String trimmed = value.trim();
+        if (trimmed.equals(lastSubmittedRename)) {
+            return;
+        }
+        pendingRename = trimmed;
+        renameDebounceFrames = RENAME_DEBOUNCE_FRAMES;
+    }
+
+    private void submitPendingRename() {
+        String trimmed = pendingRename.trim();
         if (trimmed.isEmpty() || trimmed.equals(lastSubmittedRename)) {
             return;
         }
-        UUID activeId = resolveActivePreset().map(AutoWorkPreset::id).orElse(null);
-        if (activeId != null) {
-            AutoWorkNetworking.channel().sendToServer(new RenamePresetC2SPacket(activeId, trimmed));
+        UUID activeId = resolveActivePreset().map(AutoWorkPreset::getId).orElse(null);
+        if (activeId != null && AutoWorkClientLibrary.get().renamePreset(activeId, trimmed)) {
+            rebakeActivePreset();
+            dirty = true;
         }
         lastSubmittedRename = trimmed;
     }
 
     private void deletePreset(UUID presetId) {
-        if (presetId != null) {
-            AutoWorkNetworking.channel().sendToServer(new DeletePresetC2SPacket(presetId));
+        if (presetId != null && AutoWorkClientLibrary.get().deletePreset(presetId)) {
+            activePresetId = AutoWorkClientLibrary.get().defaultPresetId();
+            selectedTaskId = null;
+            rebakeActivePreset();
+            dirty = true;
         }
     }
 
@@ -590,17 +609,14 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
         if (active == null || selectedTaskId == null) {
             return;
         }
-        List<ResourceLocation> order = active.order();
+        List<ResourceLocation> order = active.getOrder();
         int idx = order.indexOf(selectedTaskId);
         if (idx < 0) {
             return;
         }
         int target = Math.max(0, Math.min(idx + delta, order.size() - 1));
-        if (target != idx) {
-            AutoWorkNetworking.channel().sendToServer(new MovePresetTaskC2SPacket(
-                    active.id(), selectedTaskId, target));
-            // selectedTaskId stays pointing at the same task; its index
-            // will be re-resolved when the snapshot arrives and we rebuild.
+        if (target != idx && AutoWorkClientLibrary.get().moveTask(active.getId(), selectedTaskId, target)) {
+            rebakeActivePreset();
             dirty = true;
         }
     }
@@ -610,20 +626,25 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
         if (active == null || selectedTaskId == null) {
             return;
         }
-        AutoWorkNetworking.channel().sendToServer(new RemovePresetTaskC2SPacket(
-                active.id(), selectedTaskId));
-        selectedTaskId = null;
+        if (AutoWorkClientLibrary.get().removeTask(active.getId(), selectedTaskId)) {
+            selectedTaskId = null;
+            rebakeActivePreset();
+            dirty = true;
+        }
     }
 
     private void removePresetTask(UUID presetId, ResourceLocation taskId) {
         if (presetId == null) {
             return;
         }
-        AutoWorkNetworking.channel().sendToServer(new RemovePresetTaskC2SPacket(presetId, taskId));
-        if (taskId.equals(selectedTaskId)) {
-            selectedTaskId = null;
+        if (AutoWorkClientLibrary.get().removeTask(presetId, taskId)) {
+            if (taskId.equals(selectedTaskId)) {
+                selectedTaskId = null;
+            }
+            rebakeActivePreset();
+            dirty = true;
+            LOGGER.debug("Removed auto-work task from local library: preset={}, task={}", presetId, taskId);
         }
-        LOGGER.debug("Sent auto-work right-click removal: preset={}, task={}", presetId, taskId);
     }
 
     private static int clampScroll(int scroll, int taskCount) {
@@ -650,14 +671,6 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
             }
         }
         return -1;
-    }
-
-    /**
-     * Internal view of a snapshot preset. Decoupled from
-     * {@link AutoWorkSnapshot.PresetEntry} so the editor code is
-     * identical whether it works on a snapshot entry or a copy.
-     */
-    private record AutoWorkPreset(UUID id, String name, List<ResourceLocation> order) {
     }
 
     private enum ScrollColumn {

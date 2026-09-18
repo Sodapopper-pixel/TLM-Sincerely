@@ -3,9 +3,11 @@ package com.github.tartaricacid.tlm_sincerely.priority.detection.compat;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.Availability;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.DetectionContext;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.DetectionResult;
+import com.github.tartaricacid.tlm_sincerely.priority.detection.FarmReach;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.TaskScanCursor;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.TaskWorkDetector;
 import com.github.tartaricacid.touhoulittlemaid.api.task.IMaidTask;
+import com.github.tartaricacid.touhoulittlemaid.entity.passive.MaidPathFindingBFS;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import com.github.wallev.maidsoulkitchen.api.task.farm.ICompatFarmHandler;
 import com.github.wallev.maidsoulkitchen.api.task.farm.ICompatFarmTask;
@@ -34,6 +36,10 @@ import java.util.List;
  * 2 whose y-1 offset sequence ({@code -1, 0, -2, 1, -3}) is exactly
  * {@link TaskScanCursor}'s verticalOffset, and the same
  * restriction/owner/path gates.
+ *
+ * <p>Reachability uses the same surrounding check as the MSK berry brain
+ * ({@code TaskBerryFarm}'s 3x2x3 box) rather than a single-point query; see
+ * {@link FarmReach}.
  *
  * <p>The verdict is read-only: {@code ICompatFarmHandler.shouldMoveTo}
  * (the handler chain's canHarvest, no world mutation) plus a live query of
@@ -93,32 +99,42 @@ public final class MaidSoulKitchenBerryDetector implements TaskWorkDetector {
             return unavailable(context, task, "NO_COMPAT_HANDLER");
         }
 
-        while (cursor != null && context.consumeBlock()) {
-            // MSK scans the crop block itself (sweet-berry bush), not base.above().
-            BlockPos cropPos = cursor.currentPos();
-            TaskScanCursor nextCursor = cursor.advance();
+        MaidPathFindingBFS arrivalMap = new MaidPathFindingBFS(
+                maid.getNavigation().getNodeEvaluator(), context.level(), maid);
+        try {
+            while (cursor != null && context.consumeBlock()) {
+                // MSK scans the crop block itself (sweet-berry bush), not base.above().
+                BlockPos cropPos = cursor.currentPos();
+                TaskScanCursor nextCursor = cursor.advance();
 
-            if (!maid.isWithinRestriction(cropPos) || !isNearOwner(maid, cropPos)) {
-                cursor = nextCursor;
-                continue;
+                if (!maid.isWithinRestriction(cropPos) || !isNearOwner(maid, cropPos)) {
+                    cursor = nextCursor;
+                    continue;
+                }
+                BlockState cropState = context.level().getBlockState(cropPos);
+                if (ICompatFarmTask.BLACK_LIST.contains(cropState.getBlock())
+                        || !handler.shouldMoveTo(maid, cropPos, cropState)) {
+                    cursor = nextCursor;
+                    continue;
+                }
+                if (!context.consumePathCheck()) {
+                    // Retry the same candidate next tick instead of skipping it for this round.
+                    context.setCursor(cursor);
+                    return DetectionResult.unknown(task.getUid(), context.currentTick(), "PATH_BUDGET_EXHAUSTED");
+                }
+                // MSK's berry brain uses TaskBerryFarm's surrounding check: the bush
+                // itself is DAMAGE_OTHER (malus -1) and can never be a path node, so a
+                // single-point check would always fail.
+                if (FarmReach.canReach(arrivalMap, cropPos, true)) {
+                    context.setCursor(null);
+                    return new DetectionResult(task.getUid(), Availability.AVAILABLE, context.currentTick(),
+                            40, 0, "HARVESTABLE_BERRY", cropPos, null);
+                }
+                unreachableCandidates++;
+                cursor = nextCursor == null ? null : nextCursor.withUnreachableCandidates(unreachableCandidates);
             }
-            BlockState cropState = context.level().getBlockState(cropPos);
-            if (ICompatFarmTask.BLACK_LIST.contains(cropState.getBlock())
-                    || !handler.shouldMoveTo(maid, cropPos, cropState)) {
-                cursor = nextCursor;
-                continue;
-            }
-            if (!context.consumePathCheck()) {
-                context.setCursor(nextCursor);
-                return DetectionResult.unknown(task.getUid(), context.currentTick(), "PATH_BUDGET_EXHAUSTED");
-            }
-            if (maid.canPathReach(cropPos)) {
-                context.setCursor(null);
-                return new DetectionResult(task.getUid(), Availability.AVAILABLE, context.currentTick(),
-                        40, 0, "HARVESTABLE_BERRY", cropPos, null);
-            }
-            unreachableCandidates++;
-            cursor = nextCursor == null ? null : nextCursor.withUnreachableCandidates(unreachableCandidates);
+        } finally {
+            arrivalMap.finish();
         }
 
         context.setCursor(cursor);

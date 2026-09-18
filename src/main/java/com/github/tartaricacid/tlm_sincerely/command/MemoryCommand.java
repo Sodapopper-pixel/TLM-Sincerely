@@ -4,8 +4,8 @@ import com.github.tartaricacid.tlm_sincerely.chatbar.MaidFinder;
 import com.github.tartaricacid.tlm_sincerely.chatbar.MaidFinder.FindResult;
 import com.github.tartaricacid.tlm_sincerely.config.subconfig.MemoryConfig;
 import com.github.tartaricacid.tlm_sincerely.memory.MaidMemory;
-import com.github.tartaricacid.tlm_sincerely.memory.MaidMemory.MemoryEntry;
 import com.github.tartaricacid.tlm_sincerely.memory.MaidMemoryManager;
+import com.github.tartaricacid.tlm_sincerely.memory.MaidMemory.MemoryEntry;
 import com.github.tartaricacid.touhoulittlemaid.ai.manager.entity.ChatClientInfo;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import com.mojang.brigadier.Command;
@@ -137,7 +137,11 @@ public final class MemoryCommand {
         }
 
         memory.set(key, value, importance, player.getName().getString());
-        MaidMemoryManager.save(maid.getUUID(), memory);
+        if (!MaidMemoryManager.save(maid.getUUID(), memory)) {
+            player.sendSystemMessage(Component.translatable("command.tlm_sincerely.memory.save_failed")
+                    .withStyle(ChatFormatting.RED));
+            return 0;
+        }
 
         String maidName = maid.getName().getString();
         player.sendSystemMessage(Component.translatable(
@@ -267,7 +271,11 @@ public final class MemoryCommand {
         }
 
         memory.forget(key);
-        MaidMemoryManager.save(maid.getUUID(), memory);
+        if (!MaidMemoryManager.save(maid.getUUID(), memory)) {
+            player.sendSystemMessage(Component.translatable("command.tlm_sincerely.memory.save_failed")
+                    .withStyle(ChatFormatting.RED));
+            return 0;
+        }
 
         String maidName = maid.getName().getString();
         player.sendSystemMessage(Component.translatable(

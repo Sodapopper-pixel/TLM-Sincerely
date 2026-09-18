@@ -1,8 +1,6 @@
 package com.github.tartaricacid.tlm_sincerely.ai.context;
 
 import com.github.tartaricacid.tlm_sincerely.config.subconfig.PriorityConfig;
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPreset;
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPresetService;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkState;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkStateService;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.compat.AutoWorkCompatService;
@@ -17,35 +15,36 @@ import java.util.List;
 /** Appends a prose snapshot of the maid's current auto-work state to AI context. */
 public final class MaidAutoWorkContext extends AbstractMaidContext {
     public MaidAutoWorkContext() {
-        super("tlm_sincerely_auto_work_status", "Current auto work switch status and configured task priority");
+        super("tlm_sincerely_auto_work_status", "Current auto work switch status and bound task order");
     }
 
     @Override
     public String getValue(EntityMaid maid) {
         MinecraftServer server = maid == null ? null : maid.level().getServer();
-        AutoWorkPresetService presetService = AutoWorkPresetService.getOrNull(server);
         AutoWorkStateService stateService = AutoWorkStateService.getOrNull(server);
-        if (presetService == null || stateService == null) {
+        if (stateService == null) {
             return "Auto work status is unavailable because its server services are not ready.";
         }
 
         AutoWorkState state = stateService.getState(maid);
-        AutoWorkPreset preset = presetService.resolveForMaid(state);
         AutoWorkCompatService compatService = AutoWorkCompatService.getOrNull(server);
         String globalScheduling = PriorityConfig.ENABLED.get()
                 ? "Global automatic scheduling is active. "
                 : "Global automatic scheduling is paused, so no automatic task switch will occur until it is enabled. ";
-        if (preset == null) {
-            return globalScheduling + "Auto work is %s, but no effective preset is available.".formatted(
-                    state.enabled() ? "enabled" : "disabled");
+        if (!state.enabled()) {
+            return globalScheduling + "Auto work is disabled for this maid.";
         }
 
-        StringBuilder out = new StringBuilder(globalScheduling).append("Auto work is ")
-                .append(state.enabled() ? "enabled" : "disabled")
-                .append(". The effective preset is '").append(preset.getName())
-                .append("' (preset_id=").append(preset.getId()).append("). ")
-                .append("Configured task priority: ");
-        appendOrder(out, preset.getOrder(), compatService);
+        StringBuilder out = new StringBuilder(globalScheduling)
+                .append("Auto work is enabled. ");
+        if (state.presetName().isEmpty()) {
+            out.append("No preset is bound yet. ");
+        } else {
+            out.append("The bound preset is '").append(state.presetName())
+                    .append("' (preset_id=").append(state.presetId()).append("). ");
+        }
+        out.append("Bound task order: ");
+        appendOrder(out, state.order(), compatService);
         return out.toString();
     }
 

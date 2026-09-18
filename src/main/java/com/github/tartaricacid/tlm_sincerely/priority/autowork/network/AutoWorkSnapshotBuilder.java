@@ -1,7 +1,5 @@
 package com.github.tartaricacid.tlm_sincerely.priority.autowork.network;
 
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPreset;
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPresetService;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkState;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkStateService;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.compat.AutoWorkCompatService;
@@ -13,47 +11,22 @@ import net.minecraft.world.entity.LivingEntity;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 /**
- * Server-side builder for {@link AutoWorkSnapshot} (T-2 A3).
+ * Server-side builder for {@link AutoWorkSnapshot}.
  *
- * <p>Reads only from the bound per-server services. Must be called from
- * the server thread. Maids visible to the requesting player (own + OP
- * fallback) are projected; non-visible maids are silently skipped.
+ * <p>Reads only the bound per-maid state and the compat report; the preset
+ * library is never included. Must be called from the server thread. Maids
+ * visible to the requesting player (own + OP fallback) are projected.
  */
 public final class AutoWorkSnapshotBuilder {
     private AutoWorkSnapshotBuilder() {
     }
 
     public static AutoWorkSnapshot build(MinecraftServer server, ServerPlayer requester) {
-        AutoWorkPresetService presetService = AutoWorkPresetService.getOrNull(server);
         AutoWorkStateService stateService = AutoWorkStateService.getOrNull(server);
 
         int revision = 0;
-        List<AutoWorkSnapshot.PresetEntry> presets = new ArrayList<>();
-        UUID defaultPresetId;
-        if (presetService != null) {
-            for (AutoWorkPreset preset : presetService.listPresets()) {
-                presets.add(new AutoWorkSnapshot.PresetEntry(
-                        preset.getId(),
-                        preset.getName(),
-                        preset.getOrder()
-                ));
-                revision = Math.max(revision, preset.getOrder().size() + preset.getName().hashCode());
-            }
-            defaultPresetId = presetService.getDefaultPresetId();
-        } else {
-            // Defensive: server lifecycle race. The IO helper has a stable
-            // default id we can fall back to without throwing.
-            defaultPresetId = com.github.tartaricacid.tlm_sincerely.priority.autowork
-                    .AutoWorkPresetIO.LoadedLibrary.makeDefault().getId();
-        }
-        // Revision mixes preset count and default id so GUI caches notice
-        // structural changes; the per-maid revision field gives finer
-        // granularity for individual rows.
-        revision = (revision * 31) + defaultPresetId.hashCode();
-
         List<AutoWorkSnapshot.CompatEntry> compatEntries = new ArrayList<>();
         AutoWorkCompatService compatService = AutoWorkCompatService.getOrNull(server);
         if (compatService != null) {
@@ -81,6 +54,9 @@ public final class AutoWorkSnapshotBuilder {
                             maid.getUUID(),
                             state.enabled(),
                             state.presetId(),
+                            state.presetName(),
+                            List.copyOf(state.order()),
+                            state.snapshotBaked(),
                             state.revision()
                     ));
                     revision = Math.max(revision, state.revision());
@@ -88,7 +64,7 @@ public final class AutoWorkSnapshotBuilder {
             }
         }
 
-        return new AutoWorkSnapshot(revision, defaultPresetId, presets, compatEntries, maidEntries);
+        return new AutoWorkSnapshot(revision, compatEntries, maidEntries);
     }
 
     private static boolean isVisibleTo(EntityMaid maid, ServerPlayer player) {

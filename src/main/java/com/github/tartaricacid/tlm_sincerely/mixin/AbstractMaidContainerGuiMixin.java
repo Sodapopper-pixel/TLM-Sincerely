@@ -39,7 +39,7 @@ public abstract class AbstractMaidContainerGuiMixin {
      * Its native renderTooltip assumes scheduleButton is already present; skip
      * that tooltip pass during the incomplete frame instead of crashing.
      */
-    @Inject(method = "renderTooltip", at = @At("HEAD"), cancellable = true, remap = false)
+    @Inject(method = "renderTooltip", at = @At("HEAD"), cancellable = true)
     private void tlmSincerely$skipIncompleteTooltip(GuiGraphics graphics, int mouseX, int mouseY,
                                                     CallbackInfo ci) {
         if (scheduleButton == null) {

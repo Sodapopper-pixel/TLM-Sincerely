@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import type {
@@ -29,8 +29,12 @@ export function createReplayTransport(
     async chat(
       _messages: LLMMessage[],
       _tools: ToolSchema[],
-      _options: LLMRequestOptions,
+      options: LLMRequestOptions,
     ): Promise<LLMResponse> {
+      if (options.signal?.aborted) {
+        throw new Error("aborted");
+      }
+
       const currentTurn = turn;
       turn += 1;
 
@@ -38,11 +42,15 @@ export function createReplayTransport(
 
       let raw: string;
       try {
-        raw = readFileSync(filePath, "utf8");
+        raw = await readFile(filePath, "utf8");
       } catch {
         throw new Error(
           `Replay record not found for turn ${currentTurn}: expected ${filePath}`,
         );
+      }
+
+      if (options.signal?.aborted) {
+        throw new Error("aborted");
       }
 
       const recorded = JSON.parse(raw) as RecordedTurn;

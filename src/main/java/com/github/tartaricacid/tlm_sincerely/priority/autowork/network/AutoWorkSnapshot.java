@@ -6,42 +6,35 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Server-authoritative snapshot of the auto work switch state (T-2 A3).
+ * Server-authoritative snapshot of the auto work switch state.
  *
- * <p>This DTO is the only thing the client GUI is allowed to see. It
- * intentionally omits any internal flags, file paths, or revision numbers
- * that are not useful to the GUI: a single {@link #revision()} is used
- * to drive client-side cache invalidation, and a {@link #defaultPresetId()}
- * lets the GUI select the default preset when a maid's stored id is
- * stale.
- *
- * <p>Per-maid entries are filtered to the ones the requesting player is
- * allowed to see (own + OP-visible, see
- * {@link AutoWorkSnapshotBuilder#build(MinecraftServer, ServerPlayer)}).
+ * <p>The preset library itself is private to each client and is deliberately
+ * NOT part of this snapshot; the client GUI combines its local library with
+ * the per-maid {@link MaidEntry} bound snapshot (see
+ * {@code docs/adr/0004-client-preset-library-and-maid-bound-snapshot.md}).
+ * Detector compat levels stay server-side and are shipped through
+ * {@link CompatEntry}.
  */
 public record AutoWorkSnapshot(
         int revision,
-        UUID defaultPresetId,
-        List<PresetEntry> presets,
         List<CompatEntry> compatEntries,
         List<MaidEntry> maids
 ) {
-    /** Single preset projection. */
-    public record PresetEntry(UUID id, String name, List<ResourceLocation> order) {
-    }
-
     /** Server-classified detector coverage used for client-only task labels. */
     public record CompatEntry(ResourceLocation taskUid, String level, String reason) {
     }
 
     /**
-     * Single maid projection. Only maids the requesting player is allowed
-     * to see (own + OP) are emitted by the server.
+     * Single maid projection with the full bound snapshot the scheduler reads.
+     * Only maids the requesting player is allowed to see are emitted.
      */
     public record MaidEntry(
             UUID maidId,
             boolean enabled,
             UUID presetId,
+            String presetName,
+            List<ResourceLocation> order,
+            boolean snapshotBaked,
             int stateRevision
     ) {
     }

@@ -1,8 +1,11 @@
 package com.github.tartaricacid.tlm_sincerely.priority.autowork.compat;
 
+import com.github.tartaricacid.tlm_sincerely.config.subconfig.PriorityConfig;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.TaskWorkDetectorRegistry;
 import com.github.tartaricacid.touhoulittlemaid.api.task.IMaidTask;
 import com.github.tartaricacid.touhoulittlemaid.entity.task.TaskManager;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -29,6 +32,16 @@ public final class AutoWorkCompatService {
             "touhou_little_maid:feed_animal",
             "maidsoulkitchen:feed_animal_t"
     );
+    /**
+     * Partial-support tasks: a dedicated detector exists, but it only covers
+     * a verified subset. These stay schedulable, yet are always surfaced in
+     * the PROBLEMS view so players notice the limitation.
+     */
+    static final Set<String> BUILTIN_PARTIAL_SUPPORT = Set.of(
+            "maidsoulkitchen:cook"
+    );
+    /** Machine-readable reason kept stable for GUI/Tool snapshots. */
+    public static final String PARTIAL_SUPPORT_REASON = "PARTIAL_SUPPORT";
     private static final int REMINDER_DELAY_TICKS = 30;
 
     /**
@@ -98,7 +111,8 @@ public final class AutoWorkCompatService {
         List<ReportEntry> problems = new ArrayList<>();
         for (ReportEntry entry : report.values()) {
             if (entry.level() == Level.BLOCKED
-                    || (entry.level() == Level.UNSUPPORTED && !config.whitelist().contains(entry.uid().toString()))) {
+                    || (entry.level() == Level.UNSUPPORTED && !config.whitelist().contains(entry.uid().toString()))
+                    || BUILTIN_PARTIAL_SUPPORT.contains(entry.uid().toString())) {
                 problems.add(entry);
             }
         }
@@ -128,11 +142,28 @@ public final class AutoWorkCompatService {
 
     /** Missing service preserves legacy behavior during server bootstrap only. */
     public boolean isAutoScheduleAllowed(ResourceLocation uid) {
+        return isAutoScheduleAllowed(uid, false);
+    }
+
+    /**
+     * When {@code forcePreselected} is on (experimental), the CONFIG_BLACKLIST
+     * classification no longer blocks scheduling; the detector must still
+     * report AVAILABLE for the task to be selected. The compat report keeps
+     * listing those tasks as BLOCKED.
+     */
+    public boolean isAutoScheduleAllowed(ResourceLocation uid, boolean forcePreselected) {
         if (IDLE_UID.equals(uid)) {
             return false;
         }
         ReportEntry entry = report.get(uid);
-        return entry != null && entry.autoScheduleAllowed();
+        if (entry == null) {
+            return false;
+        }
+        if (forcePreselected && entry.level() == Level.BLOCKED
+                && "CONFIG_BLACKLIST".equals(entry.reason())) {
+            return true;
+        }
+        return entry.autoScheduleAllowed();
     }
 
     public String summary() {
@@ -190,7 +221,8 @@ public final class AutoWorkCompatService {
     }
 
     public void queueLoginReminder(ServerPlayer player) {
-        if (config.reminderLevel() == ReminderLevel.DISABLED) {
+        boolean forceWarning = PriorityConfig.FORCE_ENABLE_PRESELECTED.get();
+        if (!forceWarning && !compatReminderEnabled()) {
             return;
         }
         pendingReminderTicks.put(player.getUUID(), (long) server.getTickCount() + REMINDER_DELAY_TICKS);
@@ -207,7 +239,7 @@ public final class AutoWorkCompatService {
         for (UUID playerId : due) {
             pendingReminderTicks.remove(playerId);
             ServerPlayer player = server.getPlayerList().getPlayer(playerId);
-            if (player != null && shouldRemind(player)) {
+            if (player != null && (shouldRemind(player) || PriorityConfig.FORCE_ENABLE_PRESELECTED.get())) {
                 sendReminder(player);
             }
         }
@@ -225,11 +257,18 @@ public final class AutoWorkCompatService {
                 && (BUILTIN_KNOWN_BAD_FALLBACK.contains(uidText) || config.knownBadFallback().contains(uidText))) {
             return new ReportEntry(uid, uid.getNamespace(), Level.UNSUPPORTED, "KNOWN_BAD_FALLBACK", false);
         }
+        String reason = switch (resolution.source()) {
+            case EXACT -> "EXACT_DETECTOR";
+            case FALLBACK -> "INTERFACE_FALLBACK";
+            case NONE -> config.whitelist().contains(uidText) ? "WHITELIST_WITHOUT_DETECTOR" : "NO_DETECTOR";
+        };
+        if (BUILTIN_PARTIAL_SUPPORT.contains(uidText) && !"NO_DETECTOR".equals(reason)) {
+            reason = PARTIAL_SUPPORT_REASON;
+        }
         return switch (resolution.source()) {
-            case EXACT -> new ReportEntry(uid, uid.getNamespace(), Level.SUPPORTED, "EXACT_DETECTOR", true);
-            case FALLBACK -> new ReportEntry(uid, uid.getNamespace(), Level.FALLBACK, "INTERFACE_FALLBACK", true);
-            case NONE -> new ReportEntry(uid, uid.getNamespace(), Level.UNSUPPORTED,
-                    config.whitelist().contains(uidText) ? "WHITELIST_WITHOUT_DETECTOR" : "NO_DETECTOR", false);
+            case EXACT -> new ReportEntry(uid, uid.getNamespace(), Level.SUPPORTED, reason, true);
+            case FALLBACK -> new ReportEntry(uid, uid.getNamespace(), Level.FALLBACK, reason, true);
+            case NONE -> new ReportEntry(uid, uid.getNamespace(), Level.UNSUPPORTED, reason, false);
         };
     }
 
@@ -250,13 +289,30 @@ public final class AutoWorkCompatService {
         rebuildReport();
     }
 
+    /**
+     * Chat compatibility reminders still apply: the per-server reminder level
+     * is not DISABLED and the auto-work config switch has not muted them.
+     * Does not affect the force-enable-preselected warning.
+     */
+    private boolean compatReminderEnabled() {
+        return !PriorityConfig.DISABLE_COMPAT_REMINDER.get()
+                && config.reminderLevel() != ReminderLevel.DISABLED;
+    }
+
     private boolean shouldRemind(ServerPlayer player) {
+        if (!compatReminderEnabled()) {
+            return false;
+        }
         return config.reminderLevel() == ReminderLevel.ALL
                 || (config.reminderLevel() == ReminderLevel.OP_ONLY && player.hasPermissions(2));
     }
 
     private void sendReminder(ServerPlayer player) {
-        if (problemEntries().isEmpty()) {
+        if (PriorityConfig.FORCE_ENABLE_PRESELECTED.get()) {
+            player.sendSystemMessage(Component.translatable(
+                    "chat.tlm_sincerely.autowork.force_enable_warning").withStyle(ChatFormatting.GOLD));
+        }
+        if (!shouldRemind(player) || problemEntries().isEmpty()) {
             return;
         }
         AutoWorkCompatReport.send(player::sendSystemMessage, this, ReportFilter.PROBLEMS, 1);

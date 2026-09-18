@@ -3,6 +3,8 @@ package com.github.tartaricacid.tlm_sincerely.priority.detection.compat;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.Availability;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.DetectionContext;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.DetectionResult;
+import com.github.tartaricacid.tlm_sincerely.priority.detection.HardToolRequirement;
+import com.github.tartaricacid.tlm_sincerely.priority.detection.MaidHardToolService;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.TaskWorkDetector;
 import com.github.tartaricacid.touhoulittlemaid.api.task.IMaidTask;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
@@ -18,13 +20,17 @@ import java.util.List;
  * Read-only equivalent of TLM TaskExtinguishing / MaidExtinguishingTask
  * (TLM 1.5.3). Mirrors the three fire branches in TLM order: owner on fire
  * (with home restriction), maid itself on fire, or a burning TamableAnimal
- * inside the maid's AABB inflated by (2, 1, 2). The extinguisher must already
- * be in the main hand because automatic setTask does not run the tool-equip
- * callback. No path checks:
- * the agent spawns at the maid's own position. Never calls ItemsUtil.
+ * inside the maid's AABB inflated by (2, 1, 2). The extinguisher may sit in
+ * the main hand <b>or</b> the backpack; the automatic switch path must call
+ * {@link MaidHardToolService#equipTaskRequirement} before {@code setTask}
+ * because automatic setTask does not run the tool-equip callback. No path
+ * checks: the agent spawns at the maid's own position. Never calls ItemsUtil.
  */
 public final class BuiltinExtinguishingDetector implements TaskWorkDetector {
     public static final ResourceLocation UID = new ResourceLocation("touhou_little_maid", "extinguishing");
+    /** 硬性工具：灭火器，主手或背包存在即可（装备动作由 {@link MaidHardToolService} 完成）。 */
+    public static final HardToolRequirement REQUIRED_TOOL = new HardToolRequirement(
+            "extinguisher", stack -> stack.getItem() == InitItems.EXTINGUISHER.get());
 
     @Override
     public boolean supports(IMaidTask task) {
@@ -37,7 +43,7 @@ public final class BuiltinExtinguishingDetector implements TaskWorkDetector {
         if (!task.isEnable(maid)) {
             return unavailable(context, task, "TASK_DISABLED");
         }
-        if (maid.getMainHandItem().getItem() != InitItems.EXTINGUISHER.get()) {
+        if (!MaidHardToolService.hasAny(maid, REQUIRED_TOOL)) {
             return unavailable(context, task, "EXTINGUISHER_REQUIRED");
         }
 

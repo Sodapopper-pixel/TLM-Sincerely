@@ -2,10 +2,10 @@ package com.github.tartaricacid.tlm_sincerely.priority.decision;
 
 import com.github.tartaricacid.tlm_sincerely.config.subconfig.PriorityConfig;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkInternalSetTaskGuard;
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPreset;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.compat.AutoWorkCompatService;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.Availability;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.DetectionResult;
+import com.github.tartaricacid.tlm_sincerely.priority.detection.MaidHardToolService;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.MaidDetectionCache;
 import com.github.tartaricacid.touhoulittlemaid.api.task.IAttackTask;
 import com.github.tartaricacid.touhoulittlemaid.api.task.IMaidTask;
@@ -37,7 +37,7 @@ public final class TaskSwitchDecisionEngine {
     private static final Logger LOGGER = LoggerFactory.getLogger(TaskSwitchDecisionEngine.class);
     private static final int ATTACK_RELEASE_GRACE_TICKS = 20;
 
-    public boolean handleExperimentalAttackPreempt(EntityMaid maid, AutoWorkPreset preset,
+    public boolean handleExperimentalAttackPreempt(EntityMaid maid,
                                                      List<ResourceLocation> sortedTasks,
                                                      MaidDetectionCache cache, MaidSwitchState state,
                                                      long currentTick, long generation) {
@@ -81,7 +81,7 @@ public final class TaskSwitchDecisionEngine {
         return true;
     }
 
-    public void evaluateNormalSwitch(EntityMaid maid, AutoWorkPreset preset,
+    public void evaluateNormalSwitch(EntityMaid maid,
                                       List<ResourceLocation> sortedTasks, MaidDetectionCache cache,
                                       MaidSwitchState state, long currentTick, long generation) {
         if (!state.canSwitchNormally(currentTick, PriorityConfig.MINIMUM_TASK_HOLD_TICKS.get())) {
@@ -101,15 +101,18 @@ public final class TaskSwitchDecisionEngine {
         if (chosen.uid().equals(currentUid)) {
             return;
         }
-        // "Current real task in this maid's preset" is the key safety
-        // boundary. Preset membership decides whether the current task is an
+        DetectionResult currentResult = cache.getFresh(currentUid, generation, currentTick);
+        if (suppressedByBusyGuard(maid, state, currentUid, currentResult, currentTick)) {
+            return;
+        }
+        // "Current real task in this maid's bound snapshot" is the key safety
+        // boundary. Bound membership decides whether the current task is an
         // intentionally configured selection (which keeps its priority
         // protection) or an external/manual selection (which may always be
         // replaced once a confirmed candidate exists). The candidate itself
-        // has already been filtered through the preset and reached its
+        // has already been filtered through the bound order and reached its
         // AVAILABLE confirmation threshold before this method is reached.
-        boolean currentConfigured = preset != null && preset.hasTask(currentUid);
-        DetectionResult currentResult = cache.getFresh(currentUid, generation, currentTick);
+        boolean currentConfigured = sortedTasks.contains(currentUid);
         boolean currentIsIdle = currentUid.equals(TaskManager.getIdleTask().getUid());
         // Rule 1: current task is not in the preset and not idle. An external
         // addon or direct code path may have selected a real task while auto
@@ -212,6 +215,63 @@ public final class TaskSwitchDecisionEngine {
     }
 
     /**
+     * Busy guard shared by every normal switch branch: while the maid's brain
+     * shows active work for the current task (walking, pathing, attacking or
+     * holding a work target), normal switching is suppressed so an in-progress
+     * job (e.g. felling a tree) is not interrupted by other work.
+     *
+     * <p>The guard is strictly bounded so it can never stick forever:
+     * <ul>
+     *   <li>it expires once the brain stays idle for
+     *       {@link PriorityConfig#BUSY_IDLE_FORGIVE_TICKS};</li>
+     *   <li>it never outlives {@link PriorityConfig#BUSY_GUARD_MAX_TICKS}
+     *       after the current busy period starts, even if the brain never idles;</li>
+     *   <li>a task confirmed UNAVAILABLE for
+     *       {@link PriorityConfig#BUSY_UNAVAILABLE_HOLD_TICKS} is released
+     *       even while busy.</li>
+     * </ul>
+     *
+     * <p>Experimental attack preemption runs in
+     * {@link #handleExperimentalAttackPreempt} before this method is ever
+     * reached and is never blocked by this guard.
+     */
+    private boolean suppressedByBusyGuard(EntityMaid maid, MaidSwitchState state,
+                                          ResourceLocation currentUid, DetectionResult currentResult,
+                                          long currentTick) {
+        if (!PriorityConfig.BUSY_GUARD_ENABLED.get()) {
+            return false;
+        }
+        // Idle maids stroll around with a WALK_TARGET; the guard must never
+        // trap them, otherwise the whole auto switch would stop.
+        if (currentUid.equals(TaskManager.getIdleTask().getUid())) {
+            return false;
+        }
+        IMaidTask currentTask = resolveTask(currentUid).orElse(null);
+        if (currentTask == null || !currentTask.isEnable(maid) || !isAutoScheduleAllowed(maid, currentUid)) {
+            return false;
+        }
+        if (!state.isBusyActive(currentTick, PriorityConfig.BUSY_IDLE_FORGIVE_TICKS.get())) {
+            return false;
+        }
+        long anchor = state.busyStartTick();
+        if (anchor != -1 && currentTick - anchor >= PriorityConfig.BUSY_GUARD_MAX_TICKS.get()) {
+            return false;
+        }
+        // An explicitly UNAVAILABLE task may still be protected while busy,
+        // but only for a limited hold after the confirmation threshold;
+        // afterwards it is allowed to leave even with a busy brain.
+        if (currentResult.availability() == Availability.UNAVAILABLE
+                && currentResult.consecutiveConfirmations() >= PriorityConfig.UNAVAILABLE_CONFIRMATIONS.get()
+                && state.isUnavailableHoldElapsed(currentTick, PriorityConfig.BUSY_UNAVAILABLE_HOLD_TICKS.get())) {
+            return false;
+        }
+        LOGGER.debug("[TaskStability] maid={} task={} busyLastTick={} unavailableSinceTick={} "
+                        + "action=KEEP_CURRENT reason=BUSY_GUARD_ACTIVE",
+                maid.getUUID(), currentUid, state.busyObservedTick(), state.busyUnavailableSinceTick());
+        return true;
+    }
+
+    /**
      * Reverse-switch suppression guard shared by every normal switch branch:
      * an A-to-B-to-A reversal inside the window that crosses the threshold
      * starts a finite cooldown and suppresses this switch.
@@ -288,7 +348,8 @@ public final class TaskSwitchDecisionEngine {
 
     private static boolean isAutoScheduleAllowed(EntityMaid maid, ResourceLocation taskUid) {
         AutoWorkCompatService service = AutoWorkCompatService.getOrNull(maid.level().getServer());
-        return service == null || service.isAutoScheduleAllowed(taskUid);
+        return service == null || service.isAutoScheduleAllowed(taskUid,
+                PriorityConfig.FORCE_ENABLE_PRESELECTED.get());
     }
 
     private static Optional<IMaidTask> resolveTask(ResourceLocation taskUid) {
@@ -312,7 +373,28 @@ public final class TaskSwitchDecisionEngine {
         // external-task compatibility layers can recognise our write.
         // The guard is cleared in a finally-equivalent by the helper.
         ResourceLocation targetUid = targetTask.getUid();
-        AutoWorkInternalSetTaskGuard.runInternal(maid.getUUID(), targetUid, () -> maid.setTask(targetTask));
+        MaidHardToolService.EquipTransaction equipTransaction =
+                MaidHardToolService.equipTaskRequirementTransactional(maid, targetUid);
+        if (equipTransaction.result() == MaidHardToolService.EquipResult.MISSING) {
+            LOGGER.debug("[TaskDecision] maid={} generation={} keep=true current={} selected={} "
+                            + "reason=REQUIRED_TOOL_MISSING",
+                    maid.getUUID(), generation, currentUid, targetUid);
+            return;
+        }
+        // Scheduling dismount: switching to a task other than the current
+        // riding job (fishing chair, board game, boat, ...) dismounts first;
+        // keeping the current riding task leaves the maid seated.
+        if (maid.getVehicle() != null) {
+            maid.stopRiding();
+        }
+        try {
+            AutoWorkInternalSetTaskGuard.runInternal(maid.getUUID(), targetUid, () -> maid.setTask(targetTask));
+        } catch (RuntimeException switchFailure) {
+            equipTransaction.rollback().run();
+            LOGGER.error("[TaskDecision] maid={} generation={} current={} selected={} reason={} setTask failed; equipment rolled back",
+                    maid.getUUID(), generation, currentUid, targetUid, reason, switchFailure);
+            return;
+        }
         state.recordSwitch(currentTick, currentUid, targetUid, reason, normalSwitch,
                 PriorityConfig.REVERSE_SWITCH_WINDOW_TICKS.get());
         LOGGER.info("[TaskDecision] maid={} generation={} current={} selected={} reason={}", maid.getUUID(),

@@ -1,4 +1,4 @@
-# 车万女仆：真心为你
+# 车万女仆：真心为你  TLM-sincerely
 
 [![Minecraft](https://img.shields.io/badge/Minecraft-1.20.1-62B47A?style=flat-square)](https://www.minecraft.net/)
 [![Forge](https://img.shields.io/badge/Forge-47.x-E04E14?style=flat-square)](https://files.minecraftforge.net/)
@@ -6,8 +6,22 @@
 [![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
 
 《车万女仆：真心为你》是 [Touhou Little Maid / 车万女仆](https://www.curseforge.com/minecraft/mc-mods/touhou-little-maid) 的 Forge 1.20.1 附属模组，围绕女仆对话、工作调度和长期记忆提供增强功能。
+目前实现了：
+- 在聊天栏中与女仆agent进行对话
+- **核心功能**工作模式自动切换模式
+- 女仆agent记忆系统
+- 女仆agent指令系统
 
-> 当前版本：`0.1.0`
+欢迎反馈 bug 与提交 pr 修复
+
+## 未来todo（画饼）
+
+[] 迁移至1.21.1
+[] 增加玩家视角截图功能，也可能是增加相机物品，可将截图内容发送给支持视觉的女仆agent
+[] 新增物品“日记本”，绑定女仆，用于 GUI 化管理女仆的记忆
+[] 新增物品“翻盖机”，绑定女仆，可唤起带输入框的聊天界面，与女仆agent沉浸式聊天
+
+> 当前版本：`0.2.0-beta`
 >
 > Mod ID：`tlm_sincerely`
 >
@@ -20,7 +34,7 @@
 | Minecraft | 1.20.1 |
 | Mod Loader | Forge 47.x，开发环境使用 47.4.0 |
 | Java | 17 |
-| Touhou Little Maid | 1.5.1 或更高，开发环境使用 1.5.3 |
+| Touhou Little Maid | 1.5.3 |
 | Cloth Config API | 11.x，开发环境使用 11.1.136 |
 
 ## 功能
@@ -35,13 +49,15 @@
 
 ### 多工作优先级
 
-- 为女仆建立可切换的工作优先级预设。
-- 支持同优先级任务的手动排序。
+- 预设库保存在本机（客户端）配置目录；选预设时把整份任务顺序绑定到该女仆，之后改库不会自动改已绑定的女仆，也可以把预设推送给其他玩家。
+- 为女仆建立可切换的工作优先级预设，支持纯列表顺序手动排序。
 - 使用独立 Detector 检测攻击与 `IFarmTask` 工作，不通过快速切换任务进行探测。
 - 主线程分帧扫描方块并验证路径可达性，能够跳过不可达工作并选择其他可用任务。
 - 使用 AVAILABLE / UNAVAILABLE / UNKNOWN 缓存、确认次数和最短保持时间减少任务横跳。
 - 自动切换后任务持续阻塞时，可按默认开启的配置强制刷新一次 Brain。
-- 提供默认关闭的实验性攻击抢占，仅作用于预设中已经配置的攻击任务。
+- 提供默认关闭的实验性攻击抢占，仅作用于绑定快照中已经配置的攻击任务。
+- 骑乘时仍扫描全部绑定任务，切入非当前骑乘工作前自动下车。
+- 近战攻击排除弓/弩/三叉戟/御币等远程武器；弓兵需同时持有弓与箭。
 
 ### 简易记忆系统
 
@@ -51,14 +67,9 @@
 - 提供 `/tlmmemory` 命令进行查看、设置、删除、导出与回顾。
 - 支持中文女仆名称和 `uuid:<UUID>` 精确选择。
 
-## 安装
-
-1. 安装 Minecraft 1.20.1 与 Forge 47.x。
-2. 安装 Touhou Little Maid 1.5.1+ 和 Cloth Config API 11.x。
-3. 将本模组 jar 放入 Minecraft 的 `mods` 文件夹。
-4. 启动游戏后通过模组配置界面或 `config/tlm_sincerely-common.toml` 调整功能。
-
 ## 常用命令
+
+所有命令可见[功能 Wiki](WIKI.md)
 
 ```text
 /tlmchat mode [on|off]
@@ -88,7 +99,7 @@
 构建产物位于：
 
 ```text
-build/libs/tlm_sincerely-1.20.1-forge-0.1.0.jar
+build/libs/tlm_sincerely-1.20.1-forge-0.2.0-beta.jar
 ```
 
 开发环境可使用：
@@ -101,7 +112,7 @@ build/libs/tlm_sincerely-1.20.1-forge-0.1.0.jar
 
 ## 文档
 
-- [开发状态与规划](DEV_PLAN.md)
+- [功能 Wiki](WIKI.md)
 - [开发注意事项](DEVELOPMENT.md)
 - [已完成计划归档](docs/plans/)
 
@@ -109,8 +120,10 @@ build/libs/tlm_sincerely-1.20.1-forge-0.1.0.jar
 
 ```text
 config/tlm_sincerely-common.toml
-config/tlm_sincerely/task_priority_presets.json
+config/tlm_sincerely/auto_work_presets.json
+config/tlm_sincerely/auto_work_compat.json
 config/tlm_sincerely/maid_memories/<maid-uuid>.json
+logs/tlm_sincerely/command_audit.log
 ```
 
 ## 许可证

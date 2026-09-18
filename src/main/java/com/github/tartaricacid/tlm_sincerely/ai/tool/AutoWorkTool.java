@@ -1,13 +1,10 @@
 package com.github.tartaricacid.tlm_sincerely.ai.tool;
 
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPreset;
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPresetService;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkState;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkStateService;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.compat.AutoWorkCompatService;
 import com.github.tartaricacid.tlm_sincerely.config.subconfig.PriorityConfig;
 import com.github.tartaricacid.tlm_sincerely.priority.TaskAutoSwitchHandler;
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkMaidResolver;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkServerHandler;
 import com.github.tartaricacid.touhoulittlemaid.ai.agent.tool.ITool;
 import com.github.tartaricacid.touhoulittlemaid.ai.manager.entity.LLMCallback;
@@ -23,52 +20,31 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
- * Server-authoritative AI tool for the auto work switch (T-2 C2).
+ * Server-authoritative AI tool for the auto work switch.
  *
- * <p>Replaces the legacy {@code task_priority} tool. There is no longer any
- * global active preset or numeric priority: the preset library is a
- * per-server resource addressed by UUID, and the maid's ordering is the
- * list of task UIDs in a preset, where index 0 is the highest priority.
- *
- * <p>Each call resolves the bound {@link MinecraftServer} from the maid in
- * the current {@link LLMCallback} and goes through
- * {@link AutoWorkPresetService} / {@link AutoWorkStateService}. All write
- * operations on the preset library are persisted via
- * {@link AutoWorkPresetService#persistNow()}; per-maid state changes are
- * routed through {@link AutoWorkStateService#setState}.
- *
- * <p>Legacy {@code set} / {@code switch_preset} actions are explicitly
- * rejected with a deprecation notice so older LLM contexts that still
- * mention 1-10 numeric priorities or named preset switches are forced
- * to migrate.
+ * <p>The preset library lives on each player's client and is invisible to the
+ * server, so this tool can only inspect and edit the bound snapshot of the
+ * maid it is called on. Preset selection / library management must happen in
+ * the GUI; the preset actions below are intentionally rejected with that
+ * explanation instead of silently doing something different.
  */
 public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
-    private static final Logger LOGGER = LoggerFactory.getLogger(AutoWorkTool.class);
     private static final String TOOL_ID = "auto_work";
 
     private static final String TOOL_DESC = """
-            Manage the per-maid auto work switch and the server-wide preset library.
-            Use 'query' to see this maid's auto work state plus every preset's configured task order.
-            Use 'set_auto_enabled' with enabled=true to actively switch this maid into auto work; if preset_id is omitted, the maid's current preset (or the default) is used.
-            Use 'select_preset' to bind this maid to a specific preset (by preset_id); it does not change the enabled state.
-            Use 'create_preset' / 'rename_preset' / 'delete_preset' to manage presets in the shared library (by preset_id).
-            Use 'add_task' / 'remove_task' / 'move_task' to edit a preset's ordered task list; 'move_task' uses a 1-based position.
-            The preset library is a server-wide shared resource: preset and task edits affect every maid that uses them.
+            Manage the auto work switch state of THIS maid.
+            The preset library is stored on the player's client and is not visible to the server, so this tool cannot create, rename, delete or select presets; players pick presets in the maid GUI.
+            Use 'query' to see whether this maid has auto work enabled and which task order it is bound to.
+            Use 'set_auto_enabled' with enabled=true/false to turn automatic switching on or off for this maid.
+            Use 'add_task' / 'remove_task' / 'move_task' to edit THIS maid's currently bound task order; 'move_task' uses a 1-based position.
+            Editing the bound order is server-authoritative and immediate; it does not change the player's client library.
             """.trim();
 
-    /**
-     * Action names accepted by the tool. Kept in one place so the schema
-     * enum and the dispatch switch cannot drift apart.
-     */
     private static final List<String> ACTIONS = List.of(
             "query",
             "set_auto_enabled",
@@ -81,15 +57,15 @@ public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
             "move_task"
     );
 
+    private static final String LIBRARY_ON_CLIENT_MSG =
+            "The preset library is stored on the player's client and cannot be read or edited from the server. "
+                    + "Ask the player to select a preset in the maid GUI (auto work tab); this tool can only edit "
+                    + "the task order currently bound to this maid via add_task / remove_task / move_task.";
+
     private static final String DEPRECATED_NUMERIC_MSG =
             "The 'set' action with a 1-10 numeric priority is no longer supported. "
-                    + "Use 'add_task' / 'remove_task' / 'move_task' to manage a preset's task order, "
+                    + "Use 'add_task' / 'remove_task' / 'move_task' to edit this maid's bound task order, "
                     + "or call 'query' to inspect the current auto work state.";
-
-    private static final String DEPRECATED_NAMED_PRESET_MSG =
-            "The 'switch_preset' action with a preset name is no longer supported. "
-                    + "Presets are addressed by UUID; call 'query' to list preset_id values, "
-                    + "then use 'select_preset' with the chosen preset_id.";
 
     private static final Codec<Result> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Codec.STRING.fieldOf("action").forGetter(Result::action),
@@ -122,11 +98,11 @@ public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
         root.addProperties("enabled", enabled, false);
 
         StringParameter presetId = StringParameter.create()
-                .setDescription("Preset UUID. For 'select_preset' / 'rename_preset' / 'delete_preset' / 'add_task' / 'remove_task' / 'move_task' this identifies the target preset. For 'set_auto_enabled' it optionally replaces the maid's current preset. Obtain UUIDs from 'query'.");
+                .setDescription("Legacy preset UUID parameter. Preset library actions (select/create/rename/delete_preset) are refused on the server because the library lives on the player's client; use the maid GUI instead.");
         root.addProperties("preset_id", presetId, false);
 
         StringParameter name = StringParameter.create()
-                .setDescription("Human-readable name. Required for 'create_preset' (new preset) and 'rename_preset' (new name).")
+                .setDescription("Unused; preset library management happens in the player's GUI.")
                 .setMinLength(1)
                 .setMaxLength(64);
         root.addProperties("name", name, false);
@@ -141,7 +117,7 @@ public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
         root.addProperties("task_id", taskId, false);
 
         IntegerParameter position = IntegerParameter.create()
-                .setDescription("1-based target position for 'move_task'. Position 1 means the task becomes the highest priority in the preset. Values outside [1, list size] are clamped.");
+                .setDescription("1-based target position for 'move_task'. Position 1 means the task becomes the highest priority in the bound order. Values outside [1, list size] are clamped.");
         root.addProperties("position", position, false);
 
         return root;
@@ -164,9 +140,8 @@ public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
             return callback.addToolResult("Auto work services are not available on the client; "
                     + "this tool must run on the server thread with a live MinecraftServer.", toolCallId);
         }
-        AutoWorkPresetService presetService = AutoWorkPresetService.getOrNull(server);
         AutoWorkStateService stateService = AutoWorkStateService.getOrNull(server);
-        if (presetService == null || stateService == null) {
+        if (stateService == null) {
             return callback.addToolResult("Auto work services are not bound to this server yet.", toolCallId);
         }
         AutoWorkCompatService compatService = AutoWorkCompatService.getOrNull(server);
@@ -177,28 +152,21 @@ public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
         if ("set".equals(action)) {
             return callback.addToolResult(DEPRECATED_NUMERIC_MSG, toolCallId);
         }
-        if ("switch_preset".equals(action)) {
-            return callback.addToolResult(DEPRECATED_NAMED_PRESET_MSG, toolCallId);
+        if ("select_preset".equals(action) || "create_preset".equals(action)
+                || "rename_preset".equals(action) || "delete_preset".equals(action)) {
+            return callback.addToolResult(LIBRARY_ON_CLIENT_MSG, toolCallId);
         }
 
         return switch (action) {
-            case "query" -> callback.addToolResult(query(presetService, stateService, compatService, maid), toolCallId);
+            case "query" -> callback.addToolResult(query(stateService, compatService, maid), toolCallId);
             case "set_auto_enabled" -> callback.addToolResult(
-                    setAutoEnabled(server, presetService, stateService, maid, result), toolCallId);
-            case "select_preset" -> callback.addToolResult(
-                    selectPreset(server, presetService, stateService, maid, result), toolCallId);
-            case "create_preset" -> callback.addToolResult(
-                    createPreset(server, presetService, result), toolCallId);
-            case "rename_preset" -> callback.addToolResult(
-                    renamePreset(server, presetService, result), toolCallId);
-            case "delete_preset" -> callback.addToolResult(
-                    deletePreset(server, presetService, result), toolCallId);
+                    setAutoEnabled(server, stateService, maid, result), toolCallId);
             case "add_task" -> callback.addToolResult(
-                    addTask(server, presetService, result), toolCallId);
+                    addTask(server, stateService, maid, result), toolCallId);
             case "remove_task" -> callback.addToolResult(
-                    removeTask(server, presetService, result), toolCallId);
+                    removeTask(server, stateService, maid, result), toolCallId);
             case "move_task" -> callback.addToolResult(
-                    moveTask(server, presetService, result), toolCallId);
+                    moveTask(server, stateService, maid, result), toolCallId);
             default -> callback.addToolResult(ITool.invalidParam("action", ACTIONS,
                     "Unknown action: " + action), toolCallId);
         };
@@ -213,243 +181,112 @@ public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
     // Action implementations
     // -----------------------------------------------------------------
 
-    private String query(AutoWorkPresetService presetService,
-                          AutoWorkStateService stateService,
-                          AutoWorkCompatService compatService,
-                          EntityMaid maid) {
+    private String query(AutoWorkStateService stateService,
+                         AutoWorkCompatService compatService,
+                         EntityMaid maid) {
         AutoWorkState state = stateService.getState(maid);
-        AutoWorkPreset effective = presetService.resolveForMaid(state);
-        AutoWorkPreset stored = presetService.getPreset(state.presetId());
-
         StringBuilder sb = new StringBuilder();
         sb.append("Auto work state for this maid:\n");
         sb.append("  global scheduling enabled: ").append(PriorityConfig.ENABLED.get()).append('\n');
         sb.append("  enabled: ").append(state.enabled()).append('\n');
-        sb.append("  stored preset_id: ").append(state.presetId())
-                .append(stored == null ? " (missing, falling back to default)" : "").append('\n');
-        if (effective != null) {
-            sb.append("  effective preset: ").append(effective.getName())
-                    .append(" (").append(effective.getId()).append(")\n");
-            appendOrder(sb, effective, compatService);
-        } else {
-            sb.append("  effective preset: <none>\n");
-        }
-
-        sb.append("\nServer preset library:\n");
-        for (AutoWorkPreset preset : presetService.listPresets()) {
-            sb.append("  - ").append(preset.getName())
-                    .append("  preset_id=").append(preset.getId())
-                    .append(preset.getId().equals(presetService.getDefaultPresetId()) ? "  (default)" : "")
-                    .append(effective != null && preset.getId().equals(effective.getId()) ? "  (active)" : "")
-                    .append("  size=").append(preset.getOrder().size())
-                    .append('\n');
-            appendOrder(sb, preset, compatService);
-        }
-        return sb.toString().trim();
+        sb.append("  bound preset: ").append(state.presetName().isEmpty() ? "<none>" : state.presetName())
+                .append(" (preset_id=").append(state.presetId()).append(", baked=")
+                .append(state.snapshotBaked()).append(")\n");
+        sb.append("  bound task order:\n");
+        appendOrder(sb, state.order(), compatService);
+        sb.append("\nNote: the preset library itself is stored on the player's client; ")
+                .append("use the maid GUI to choose or edit presets.");
+        return sb.toString();
     }
 
     private String setAutoEnabled(MinecraftServer server,
-                                  AutoWorkPresetService presetService,
                                   AutoWorkStateService stateService,
                                   EntityMaid maid,
                                   Result result) {
         boolean desired = result.enabled();
         if (desired) {
-            UUID presetId = parsePresetId(result.presetId());
-            AutoWorkState current = stateService.getState(maid);
-            if (presetId == null) {
-                presetId = presetService.getPreset(current.presetId()) != null
-                        ? current.presetId() : presetService.getDefaultPresetId();
-            }
-            if (presetId == null) {
-                return ITool.invalidParam("preset_id", presetIdValues(presetService),
-                        "No usable preset exists to enable auto work for this maid");
-            }
-            AutoWorkPreset preset = presetService.getPreset(presetId);
-            if (preset == null) {
-                return ITool.invalidParam("preset_id", presetIdValues(presetService),
-                        "Preset not found: " + presetId);
-            }
-            AutoWorkState next = current.withEnabled(true).withPresetId(presetId);
-            stateService.setState(maid, next);
+            AutoWorkState bound = stateService.ensureBoundSnapshot(maid);
+            stateService.setEnabled(maid, true);
             TaskAutoSwitchHandler.requestImmediateEvaluation(maid, "AGENT_ENABLE", true);
             AutoWorkServerHandler.broadcastSnapshots(server);
-            return "Auto work enabled for this maid using preset '%s' (preset_id=%s).%s".formatted(
-                    preset.getName(), presetId, PriorityConfig.ENABLED.get() ? ""
+            String name = bound.presetName().isEmpty() ? bound.presetId().toString() : bound.presetName();
+            return "Auto work enabled for this maid using its bound snapshot '%s' (%d tasks).%s".formatted(
+                    name, bound.order().size(), PriorityConfig.ENABLED.get() ? ""
                             : " Global automatic scheduling is currently paused.");
         }
-        // Disabling: preset is irrelevant.
         stateService.setEnabled(maid, false);
         AutoWorkServerHandler.broadcastSnapshots(server);
         return "Auto work disabled for this maid.";
     }
 
-    private String selectPreset(MinecraftServer server,
-                                AutoWorkPresetService presetService,
-                                AutoWorkStateService stateService,
-                                EntityMaid maid,
-                                Result result) {
-        UUID presetId = parsePresetId(result.presetId());
-        if (presetId == null) {
-            return ITool.invalidParam("preset_id", presetIdValues(presetService),
-                    "preset_id is required for 'select_preset'");
-        }
-        AutoWorkPreset preset = presetService.getPreset(presetId);
-        if (preset == null) {
-            return ITool.invalidParam("preset_id", presetIdValues(presetService),
-                    "Preset not found: " + presetId);
-        }
-        stateService.setPresetId(maid, presetId);
-        TaskAutoSwitchHandler.requestImmediateEvaluation(maid, "AGENT_SELECT_PRESET", true);
-        AutoWorkServerHandler.broadcastSnapshots(server);
-        return "Selected preset '%s' (preset_id=%s) for this maid.".formatted(preset.getName(), presetId);
-    }
-
-    private String createPreset(MinecraftServer server, AutoWorkPresetService presetService, Result result) {
-        String name = result.name().trim();
-        if (name.isEmpty()) {
-            return ITool.invalidParam("name", List.of("<preset name>"),
-                    "name is required for 'create_preset'");
-        }
-        AutoWorkPreset preset = presetService.createPreset(name);
-        persistAndBroadcast(server, presetService);
-        LOGGER.info("[AutoWorkTool] create_preset '{}' -> {}", name, preset.getId());
-        return "Created preset '%s' with preset_id=%s.".formatted(preset.getName(), preset.getId());
-    }
-
-    private String renamePreset(MinecraftServer server, AutoWorkPresetService presetService, Result result) {
-        UUID presetId = parsePresetId(result.presetId());
-        if (presetId == null) {
-            return ITool.invalidParam("preset_id", presetIdValues(presetService),
-                    "preset_id is required for 'rename_preset'");
-        }
-        String newName = result.name().trim();
-        if (newName.isEmpty()) {
-            return ITool.invalidParam("name", List.of("<new preset name>"),
-                    "name is required for 'rename_preset'");
-        }
-        boolean ok = presetService.renamePreset(presetId, newName);
-        if (!ok) {
-            return ITool.invalidParam("preset_id", presetIdValues(presetService),
-                    "Preset not found: " + presetId);
-        }
-        persistAndBroadcast(server, presetService);
-        return "Renamed preset %s to '%s'.".formatted(presetId, newName);
-    }
-
-    private String deletePreset(MinecraftServer server, AutoWorkPresetService presetService, Result result) {
-        UUID presetId = parsePresetId(result.presetId());
-        if (presetId == null) {
-            return ITool.invalidParam("preset_id", presetIdValues(presetService),
-                    "preset_id is required for 'delete_preset'");
-        }
-        if (presetService.listPresets().size() <= 1) {
-            return "Refused: at least one preset must remain in the library.";
-        }
-        if (presetService.getPreset(presetId) == null) {
-            return ITool.invalidParam("preset_id", presetIdValues(presetService),
-                    "Preset not found: " + presetId);
-        }
-        int reassigned = AutoWorkMaidResolver.reassignLoadedMaidsToDefault(server, presetId);
-        boolean ok = presetService.deletePreset(presetId);
-        if (!ok) {
-            return ITool.invalidParam("preset_id", presetIdValues(presetService),
-                    "Preset not found: " + presetId);
-        }
-        persistAndBroadcast(server, presetService);
-        return "Deleted preset %s. Reassigned %d loaded maids to the default preset.".formatted(presetId, reassigned);
-    }
-
-    private String addTask(MinecraftServer server, AutoWorkPresetService presetService, Result result) {
-        UUID presetId = parsePresetId(result.presetId());
-        if (presetId == null) {
-            return ITool.invalidParam("preset_id", presetIdValues(presetService),
-                    "preset_id is required for 'add_task'");
-        }
+    private String addTask(MinecraftServer server, AutoWorkStateService stateService,
+                           EntityMaid maid, Result result) {
         ResourceLocation taskId = parseTaskId(result.taskId());
         if (taskId == null) {
             return ITool.invalidParam("task_id", taskIdValues(),
                     "task_id is required for 'add_task'");
         }
-        boolean added = presetService.addTask(presetId, taskId);
-        if (!added) {
-            // Distinguish 'unknown preset' from 'already in order'.
-            if (presetService.getPreset(presetId) == null) {
-                return ITool.invalidParam("preset_id", presetIdValues(presetService),
-                        "Preset not found: " + presetId);
+        if (!stateService.addSnapshotTask(maid, taskId)) {
+            AutoWorkState state = stateService.getState(maid);
+            if (state.order().contains(taskId)) {
+                return "Task '%s' is already present in this maid's bound order.".formatted(taskId);
             }
-            return "Task '%s' is already present in preset %s.".formatted(taskId, presetId);
+            return "Task '%s' cannot be added to this maid's bound order.".formatted(taskId);
         }
-        TaskAutoSwitchHandler.requestPresetRescan(server, presetId, "AGENT_ADD_PRESET_TASK");
-        persistAndBroadcast(server, presetService);
-        return "Appended task '%s' to preset %s.".formatted(taskId, presetId);
+        TaskAutoSwitchHandler.requestImmediateEvaluation(maid, "AGENT_ADD_BOUND_TASK", true);
+        AutoWorkServerHandler.broadcastSnapshots(server);
+        return "Appended task '%s' to this maid's bound order.".formatted(taskId);
     }
 
-    private String removeTask(MinecraftServer server, AutoWorkPresetService presetService, Result result) {
-        UUID presetId = parsePresetId(result.presetId());
-        if (presetId == null) {
-            return ITool.invalidParam("preset_id", presetIdValues(presetService),
-                    "preset_id is required for 'remove_task'");
-        }
+    private String removeTask(MinecraftServer server, AutoWorkStateService stateService,
+                              EntityMaid maid, Result result) {
         ResourceLocation taskId = parseTaskId(result.taskId());
         if (taskId == null) {
             return ITool.invalidParam("task_id", taskIdValues(),
                     "task_id is required for 'remove_task'");
         }
-        if (presetService.getPreset(presetId) == null) {
-            return ITool.invalidParam("preset_id", presetIdValues(presetService),
-                    "Preset not found: " + presetId);
+        if (!stateService.removeSnapshotTask(maid, taskId)) {
+            return "Task '%s' is not in this maid's bound order.".formatted(taskId);
         }
-        boolean removed = presetService.removeTask(presetId, taskId);
-        if (!removed) {
-            return "Task '%s' is not in preset %s.".formatted(taskId, presetId);
-        }
-        TaskAutoSwitchHandler.requestPresetRescan(server, presetId, "AGENT_REMOVE_PRESET_TASK");
-        persistAndBroadcast(server, presetService);
-        return "Removed task '%s' from preset %s.".formatted(taskId, presetId);
+        TaskAutoSwitchHandler.requestImmediateEvaluation(maid, "AGENT_REMOVE_BOUND_TASK", true);
+        AutoWorkServerHandler.broadcastSnapshots(server);
+        return "Removed task '%s' from this maid's bound order.".formatted(taskId);
     }
 
-    private String moveTask(MinecraftServer server, AutoWorkPresetService presetService, Result result) {
-        UUID presetId = parsePresetId(result.presetId());
-        if (presetId == null) {
-            return ITool.invalidParam("preset_id", presetIdValues(presetService),
-                    "preset_id is required for 'move_task'");
-        }
+    private String moveTask(MinecraftServer server, AutoWorkStateService stateService,
+                            EntityMaid maid, Result result) {
         ResourceLocation taskId = parseTaskId(result.taskId());
         if (taskId == null) {
             return ITool.invalidParam("task_id", taskIdValues(),
                     "task_id is required for 'move_task'");
         }
-        AutoWorkPreset preset = presetService.getPreset(presetId);
-        if (preset == null) {
-            return ITool.invalidParam("preset_id", presetIdValues(presetService),
-                    "Preset not found: " + presetId);
+        AutoWorkState state = stateService.getState(maid);
+        if (!state.order().contains(taskId)) {
+            return "Task '%s' is not in this maid's bound order; use 'add_task' first.".formatted(taskId);
         }
-        if (!preset.hasTask(taskId)) {
-            return "Task '%s' is not in preset %s; use 'add_task' first.".formatted(taskId, presetId);
-        }
-        int orderSize = preset.getOrder().size();
+        int orderSize = state.order().size();
         if (result.position() < 1) {
             return ITool.invalidParam("position", List.of("1..%d".formatted(orderSize)),
                     "position must be 1 or greater (1-based)");
         }
         int targetIndex = result.position() - 1;
         int clamped = Math.max(0, Math.min(targetIndex, orderSize - 1));
-        boolean moved = presetService.moveTask(presetId, taskId, clamped);
+        boolean moved = stateService.moveSnapshotTask(maid, taskId, clamped);
         if (!moved) {
-            return "Task '%s' is already at position %d in preset %s.".formatted(taskId, clamped + 1, presetId);
+            return "Task '%s' is already at position %d in this maid's bound order."
+                    .formatted(taskId, clamped + 1);
         }
-        TaskAutoSwitchHandler.requestPresetRescan(server, presetId, "AGENT_MOVE_PRESET_TASK");
-        persistAndBroadcast(server, presetService);
-        return "Moved task '%s' to position %d in preset %s.".formatted(taskId, clamped + 1, presetId);
+        TaskAutoSwitchHandler.requestImmediateEvaluation(maid, "AGENT_MOVE_BOUND_TASK", true);
+        AutoWorkServerHandler.broadcastSnapshots(server);
+        return "Moved task '%s' to position %d in this maid's bound order.".formatted(taskId, clamped + 1);
     }
 
     // -----------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------
 
-    private static void appendOrder(StringBuilder sb, AutoWorkPreset preset, AutoWorkCompatService compatService) {
-        List<ResourceLocation> order = preset.getOrder();
+    private static void appendOrder(StringBuilder sb, List<ResourceLocation> order,
+                                    AutoWorkCompatService compatService) {
         if (order.isEmpty()) {
             sb.append("    (empty)\n");
             return;
@@ -471,34 +308,12 @@ public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
         }
     }
 
-    private static void persistAndBroadcast(MinecraftServer server, AutoWorkPresetService presetService) {
-        presetService.persistNow();
-        AutoWorkServerHandler.broadcastSnapshots(server);
-    }
-
-    private static List<String> presetIdValues(AutoWorkPresetService presetService) {
-        return presetService.listPresets().stream()
-                .map(p -> p.getId().toString())
-                .collect(Collectors.toList());
-    }
-
     private static List<String> taskIdValues() {
         List<String> out = new ArrayList<>();
         for (IMaidTask task : TaskManager.getTaskIndex()) {
             out.add(task.getUid().toString());
         }
         return out;
-    }
-
-    private static UUID parsePresetId(String raw) {
-        if (raw == null || raw.isEmpty()) {
-            return null;
-        }
-        try {
-            return UUID.fromString(raw.trim());
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
     }
 
     private static ResourceLocation parseTaskId(String raw) {

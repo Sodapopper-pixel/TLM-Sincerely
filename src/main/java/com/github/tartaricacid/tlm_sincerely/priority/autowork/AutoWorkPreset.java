@@ -7,7 +7,11 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Server-side work order preset for the auto work switch (T-2 A2).
+ * Work order preset for the auto work switch.
+ *
+ * <p>Presets live in each client's private library and are copied into a
+ * maid's bound snapshot when selected; the server only holds the frozen seed
+ * used for legacy migration and the first-join copy.
  *
  * <p>Unlike the legacy {@code TaskPriorityPreset}, this class has no
  * numeric priority field; the {@link #order()} list IS the priority.

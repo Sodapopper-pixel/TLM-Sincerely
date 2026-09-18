@@ -58,7 +58,6 @@ public class AutoWorkBrownButton extends AbstractWidget {
     private final boolean centered;
     private final ItemStack icon;
     private final boolean selected;
-    private final Component hoverTooltip;
 
     public AutoWorkBrownButton(int x, int y, int width, int height,
                                ResourceLocation texture, int texU, int texV, int texHoverOffset,
@@ -72,15 +71,6 @@ public class AutoWorkBrownButton extends AbstractWidget {
                                ResourceLocation texture, int texU, int texV, int texHoverOffset,
                                Component label, OnPress onPress, boolean centered,
                                ItemStack icon, boolean selected, OnPress onSecondaryPress) {
-        this(x, y, width, height, texture, texU, texV, texHoverOffset, label, onPress, centered,
-                icon, selected, onSecondaryPress, null);
-    }
-
-    /** Creates a task row with an optional server-authoritative compatibility tooltip. */
-    public AutoWorkBrownButton(int x, int y, int width, int height,
-                               ResourceLocation texture, int texU, int texV, int texHoverOffset,
-                               Component label, OnPress onPress, boolean centered,
-                               ItemStack icon, boolean selected, OnPress onSecondaryPress, Component hoverTooltip) {
         super(x, y, width, height, label);
         this.texture = texture;
         this.texU = texU;
@@ -92,7 +82,6 @@ public class AutoWorkBrownButton extends AbstractWidget {
         this.icon = icon == null ? ItemStack.EMPTY : icon;
         this.selected = selected;
         this.onSecondaryPress = onSecondaryPress;
-        this.hoverTooltip = hoverTooltip;
     }
 
     @Override
@@ -142,9 +131,6 @@ public class AutoWorkBrownButton extends AbstractWidget {
             String text = mc.font.plainSubstrByWidth(label.getString(),
                     Math.max(0, getX() + getWidth() - 4 - textX));
             graphics.drawString(mc.font, text, textX, textY, LABEL_COLOR, false);
-        }
-        if (hoverTooltip != null && this.isHovered()) {
-            graphics.renderTooltip(mc.font, hoverTooltip, mouseX, mouseY);
         }
     }
 

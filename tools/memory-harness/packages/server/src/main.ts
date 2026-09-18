@@ -1,10 +1,15 @@
-import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 import { createHarnessServer } from "./server.js";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const projectRoot = resolve(__dirname, "..", "..", "..");
+
 async function main(): Promise<void> {
-  const dataDir = resolve(process.cwd(), "data");
-  const skillsDir = resolve(process.cwd(), "fixtures/skills");
-  const recordingsDir = resolve(process.cwd(), "data/recordings");
+  const dataDir = resolve(projectRoot, "data");
+  const skillsDir = resolve(projectRoot, "fixtures", "skills");
+  const recordingsDir = resolve(projectRoot, "data", "recordings");
   const host = process.env.SERVER_HOST ?? "127.0.0.1";
   const port = Number(process.env.SERVER_PORT ?? 7421);
 

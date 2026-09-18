@@ -62,7 +62,7 @@ public final class GoldenDump {
     private static MaidMemory buildMemory(String[][] entries) {
         MaidMemory m = new MaidMemory();
         for (String[] e : entries) {
-            m.getMemories().put(e[0], new MaidMemory.MemoryEntry(e[1], e[2], 0L, 0L));
+            m.putEntry(e[0], new MaidMemory.MemoryEntry(e[1], e[2], 0L, 0L));
         }
         return m;
     }

@@ -62,13 +62,15 @@ export function createLiveTransport(config: LLMClientConfig): LLMTransport {
         method: "POST",
         headers,
         body: JSON.stringify(body),
+        signal: options.signal ?? null,
       });
 
       if (!response.ok) {
-        const text = await response.text();
-        const preview = text.slice(0, 500);
+        console.error(
+          `[live] LLM request failed: HTTP ${response.status} ${response.statusText}`,
+        );
         throw new Error(
-          `LLM request failed: HTTP ${response.status} ${response.statusText}; body: ${preview}`,
+          `LLM request failed: HTTP ${response.status} ${response.statusText}`,
         );
       }
 

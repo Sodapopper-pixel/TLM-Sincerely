@@ -3,10 +3,12 @@ package com.github.tartaricacid.tlm_sincerely.priority.detection.compat;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.Availability;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.DetectionContext;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.DetectionResult;
+import com.github.tartaricacid.tlm_sincerely.priority.detection.FarmReach;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.TaskScanCursor;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.TaskWorkDetector;
 import com.github.tartaricacid.touhoulittlemaid.api.task.IMaidTask;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
+import com.github.tartaricacid.touhoulittlemaid.entity.passive.MaidPathFindingBFS;
 import com.github.wallev.maidsoulkitchen.api.task.farm.ICompatFarmHandler;
 import com.github.wallev.maidsoulkitchen.api.task.farm.ICompatFarmTask;
 import com.github.wallev.maidsoulkitchen.entity.data.inner.task.berryfruit.v1.BerryFruitData;
@@ -79,31 +81,47 @@ public final class MaidSoulKitchenFruitDetector implements TaskWorkDetector {
         }
         int unreachableCandidates = cursor.unreachableCandidates();
 
-        while (cursor != null && context.consumeBlock()) {
-            // Cursor position is already the checked fruit block (Y+3..Y+7 band).
-            BlockPos cropPos = cursor.currentPos();
-            TaskScanCursor nextCursor = cursor.advance();
+        // MaidCompatFruitMoveTask searches the base position (fruit block minus
+        // searchYOffset) and only walks to pos.above(searchYOffset): range, owner
+        // and reachability are all evaluated on the base, not on the fruit block.
+        MaidPathFindingBFS arrivalMap = null;
+        try {
+            while (cursor != null && context.consumeBlock()) {
+                // Cursor position is already the checked fruit block (Y+3..Y+7 band).
+                BlockPos cropPos = cursor.currentPos();
+                TaskScanCursor nextCursor = cursor.advance();
+                BlockPos basePos = cropPos.below(searchYOffset);
 
-            if (!maid.isWithinRestriction(cropPos) || !isNearOwner(maid, cropPos)) {
-                cursor = nextCursor;
-                continue;
+                if (!maid.isWithinRestriction(basePos) || !isNearOwner(maid, basePos)) {
+                    cursor = nextCursor;
+                    continue;
+                }
+                BlockState cropState = context.level().getBlockState(cropPos);
+                if (!canHarvest(compatTask, maid, cropPos, cropState, handler)) {
+                    cursor = nextCursor;
+                    continue;
+                }
+                if (!context.consumePathCheck()) {
+                    // Retry the same candidate next tick instead of skipping it for this round.
+                    context.setCursor(cursor);
+                    return DetectionResult.unknown(task.getUid(), context.currentTick(), "PATH_BUDGET_EXHAUSTED");
+                }
+                if (arrivalMap == null) {
+                    arrivalMap = new MaidPathFindingBFS(
+                            maid.getNavigation().getNodeEvaluator(), context.level(), maid);
+                }
+                if (FarmReach.canReach(arrivalMap, basePos, false)) {
+                    context.setCursor(null);
+                    return new DetectionResult(task.getUid(), Availability.AVAILABLE, context.currentTick(),
+                            40, 0, "MATURE_FRUIT", cropPos, null);
+                }
+                unreachableCandidates++;
+                cursor = nextCursor == null ? null : nextCursor.withUnreachableCandidates(unreachableCandidates);
             }
-            BlockState cropState = context.level().getBlockState(cropPos);
-            if (!canHarvest(compatTask, maid, cropPos, cropState, handler)) {
-                cursor = nextCursor;
-                continue;
+        } finally {
+            if (arrivalMap != null) {
+                arrivalMap.finish();
             }
-            if (!context.consumePathCheck()) {
-                context.setCursor(nextCursor);
-                return DetectionResult.unknown(task.getUid(), context.currentTick(), "PATH_BUDGET_EXHAUSTED");
-            }
-            if (maid.canPathReach(cropPos)) {
-                context.setCursor(null);
-                return new DetectionResult(task.getUid(), Availability.AVAILABLE, context.currentTick(),
-                        40, 0, "MATURE_FRUIT", cropPos, null);
-            }
-            unreachableCandidates++;
-            cursor = nextCursor == null ? null : nextCursor.withUnreachableCandidates(unreachableCandidates);
         }
 
         context.setCursor(cursor);

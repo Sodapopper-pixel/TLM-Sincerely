@@ -15,6 +15,8 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
+    "predev:server": "npm run build",
+    "dev:server": "node dist/main.js",
     "start": "node dist/index.js"
   },
   "dependencies": {

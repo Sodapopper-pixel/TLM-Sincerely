@@ -3,6 +3,8 @@ package com.github.tartaricacid.tlm_sincerely.priority.detection.compat;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.Availability;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.DetectionContext;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.DetectionResult;
+import com.github.tartaricacid.tlm_sincerely.priority.detection.HardToolRequirement;
+import com.github.tartaricacid.tlm_sincerely.priority.detection.MaidHardToolService;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.TaskWorkDetector;
 import com.github.tartaricacid.touhoulittlemaid.api.task.IMaidTask;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
@@ -15,6 +17,9 @@ import net.minecraftforge.common.IForgeShearable;
 /** Mirrors TLM TaskShears' public target requirements without changing world state. */
 public final class BuiltinShearsDetector implements TaskWorkDetector {
     public static final ResourceLocation UID = new ResourceLocation("touhou_little_maid", "shears");
+    /** 硬性工具：剪刀，主手或背包存在即可（装备动作由 {@link MaidHardToolService} 完成）。 */
+    public static final HardToolRequirement REQUIRED_TOOL = new HardToolRequirement(
+            "shears", stack -> stack.getItem() instanceof ShearsItem);
     private static final double TARGET_RANGE_SQR = 4.0D;
 
     @Override
@@ -28,10 +33,11 @@ public final class BuiltinShearsDetector implements TaskWorkDetector {
         if (!task.isEnable(maid)) {
             return unavailable(context, task, "TASK_DISABLED");
         }
-        ItemStack tool = maid.getMainHandItem();
-        if (!(tool.getItem() instanceof ShearsItem)) {
+        if (!MaidHardToolService.hasAny(maid, REQUIRED_TOOL)) {
             return unavailable(context, task, "SHEARS_REQUIRED");
         }
+        // 只读目标检查：主手优先、背包兜底取工具副本传给 isShearable（查询语义，无副作用）。
+        ItemStack tool = MaidHardToolService.findBest(maid, REQUIRED_TOOL);
         for (LivingEntity entity : context.level().getEntitiesOfClass(LivingEntity.class,
                 maid.getBoundingBox().inflate(2.0D))) {
             if (!(entity instanceof IForgeShearable shearable) || !entity.isAlive()

@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import type {
@@ -22,21 +22,35 @@ export function createRecordTransport(
       tools: ToolSchema[],
       options: LLMRequestOptions,
     ): Promise<LLMResponse> {
+      if (options.signal?.aborted) {
+        throw new Error("aborted");
+      }
+
       const currentTurn = turn;
       turn += 1;
 
       const response = await inner.chat(messages, tools, options);
 
+      if (options.signal?.aborted) {
+        return response;
+      }
+
       try {
         const dir = join(recordDir, sessionName);
-        mkdirSync(dir, { recursive: true });
-        const filePath = join(dir, `turn-${currentTurn}.json`);
-        const record = {
-          turn: currentTurn,
-          request: { messages, tools, options },
-          response,
-        };
-        writeFileSync(filePath, JSON.stringify(record, null, 2), "utf8");
+        await mkdir(dir, { recursive: true });
+        await writeFile(
+          join(dir, `turn-${currentTurn}.json`),
+          JSON.stringify(
+            {
+              turn: currentTurn,
+              request: { messages, tools, options },
+              response,
+            },
+            null,
+            2,
+          ),
+          "utf8",
+        );
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         console.error(

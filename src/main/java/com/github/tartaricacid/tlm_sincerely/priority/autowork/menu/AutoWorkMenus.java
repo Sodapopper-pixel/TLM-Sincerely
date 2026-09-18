@@ -18,6 +18,7 @@ import net.minecraftforge.registries.RegistryObject;
 public final class AutoWorkMenus {
     public static final DeferredRegister<MenuType<?>> MENUS =
             DeferredRegister.create(ForgeRegistries.MENU_TYPES, SincerelyExtension.MOD_ID);
+    private static boolean registered = false;
 
     public static final RegistryObject<MenuType<AutoWorkConfigContainer>> AUTO_WORK_CONFIG =
             MENUS.register("auto_work_config", () -> AutoWorkConfigContainer.TYPE);
@@ -27,6 +28,10 @@ public final class AutoWorkMenus {
 
     /** Bind the deferred register to the given mod event bus. Idempotent. */
     public static void register(IEventBus modBus) {
+        if (registered) {
+            return;
+        }
         MENUS.register(modBus);
+        registered = true;
     }
 }

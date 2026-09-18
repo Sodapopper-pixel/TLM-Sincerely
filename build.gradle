@@ -17,7 +17,7 @@ plugins {
 apply plugin: 'org.spongepowered.mixin'
 
 group = project.findProperty('mod_group_id') ?: 'com.github.tartaricacid'
-version = project.findProperty('mod_version') ?: '0.1.0'
+version = project.findProperty('mod_version') ?: '0.2.0-beta'
 archivesBaseName = "${project.findProperty('mod_id') ?: 'tlm_sincerely'}-${minecraft_version}-forge"
 
 java {
@@ -109,34 +109,60 @@ dependencies {
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
     runtimeOnly fg.deobf("mezz.jei:jei-1.20.1-forge:15.20.0.106")
+    compileOnly fg.deobf("curse.maven:jade-324717:5072729")
     runtimeOnly fg.deobf("curse.maven:jade-324717:5072729")
     runtimeOnly fg.deobf("maven.modrinth:curios:5.14.1+1.20.1-forge")
     runtimeOnly fg.deobf("maven.modrinth:farmers-delight:1.20.1-1.2.6-forge")
     runtimeOnly fg.deobf("maven.modrinth:sophisticated-backpacks:1.20.1-3.23.23.1297")
     runtimeOnly fg.deobf("maven.modrinth:sophisticated-core:1.20.1-1.2.80.1073")
     runtimeOnly fg.deobf("maven.modrinth:embeddium:0.3.31+mc1.20.1")
-    runtimeOnly fg.deobf("curse.maven:maid-storage-manager-1210244:6315697")
+    runtimeOnly fg.deobf("curse.maven:maid-storage-manager-1210244:7976861")
     runtimeOnly fg.deobf("net.createmod.ponder:Ponder-Forge-1.20.1:1.0.80")
     runtimeOnly fg.deobf("maven.modrinth:create:1.20.1-6.0.6")
     runtimeOnly fg.deobf("maven.modrinth:kaleidoscope-cookery:1.2.0-forge+mc1.20.1")
     runtimeOnly fg.deobf("vazkii.patchouli:Patchouli:1.20.1-84-FORGE")
-    runtimeOnly fg.deobf("libs:catalogue-forge:1.20.1-1.8.0")
-    runtimeOnly fg.deobf("libs:configured-forge:1.20.1-2.2.3")
-    runtimeOnly fg.deobf("libs:Searchables-forge:1.0.3")
-    runtimeOnly fg.deobf("libs:Controlling-forge:1.20.1-12.0.2")
-    runtimeOnly fg.deobf("libs:MouseTweaks-forge:2.25.1")
-    runtimeOnly fg.deobf("libs:visual_keybinder:1.20.1-0.1.11")
-    runtimeOnly fg.deobf("libs:modnametooltip-forge:1.20.1-1.20.0")
-    runtimeOnly fg.deobf("libs:ModernUI-Forge:1.20.1-3.12.0.1")
-    runtimeOnly fg.deobf("libs:maid_useful_task-forge:1.20.1-1.4.0")
-    compileOnly fg.deobf("libs:maidsoulkitchen-forge:1.20.1-0.3.0.9")
-    runtimeOnly fg.deobf("libs:maidsoulkitchen-forge:1.20.1-0.3.0.9")
+
+    // Optional development-only runtime mods loaded from local libs/ when present.
+    def optionalRuntimeJar = { String fileName, String coordinate ->
+        def f = file("libs/${fileName}")
+        if (f.exists()) {
+            runtimeOnly fg.deobf("libs:${coordinate}")
+        } else {
+            logger.warn("libs/${fileName} not found, skipping optional dev dependency")
+        }
+    }
+    optionalRuntimeJar('catalogue-forge-1.20.1-1.8.0.jar', 'catalogue-forge:1.20.1-1.8.0')
+    optionalRuntimeJar('configured-forge-1.20.1-2.2.3.jar', 'configured-forge:1.20.1-2.2.3')
+    optionalRuntimeJar('Searchables-forge-1.0.3.jar', 'Searchables-forge:1.0.3')
+    optionalRuntimeJar('Controlling-forge-1.20.1-12.0.2.jar', 'Controlling-forge:1.20.1-12.0.2')
+    optionalRuntimeJar('MouseTweaks-forge-2.25.1.jar', 'MouseTweaks-forge:2.25.1')
+    optionalRuntimeJar('visual_keybinder-1.20.1-0.1.11.jar', 'visual_keybinder:1.20.1-0.1.11')
+    optionalRuntimeJar('modnametooltip-forge-1.20.1-1.20.0.jar', 'modnametooltip-forge:1.20.1-1.20.0')
+    optionalRuntimeJar('ModernUI-Forge-1.20.1-3.12.0.1.jar', 'ModernUI-Forge:1.20.1-3.12.0.1')
+    optionalRuntimeJar('maid_useful_task-forge-1.20.1-1.4.0.jar', 'maid_useful_task-forge:1.20.1-1.4.0')
+    def maidSoulKitchen = file('libs/maidsoulkitchen-forge-1.20.1-0.3.0.9.jar')
+    if (maidSoulKitchen.exists()) {
+        compileOnly fg.deobf("libs:maidsoulkitchen-forge:1.20.1-0.3.0.9")
+        runtimeOnly fg.deobf("libs:maidsoulkitchen-forge:1.20.1-0.3.0.9")
+    } else {
+        logger.warn("libs/maidsoulkitchen-forge-1.20.1-0.3.0.9.jar not found, skipping optional dev dependency")
+    }
     // IMBlocker 必须走 fg.deobf；且需使用 devfix 版：
     // 原版 WindowMixin 同时注入 setGuiScale(D)V 与 setGuiScale(I)V（多版本兼容），
     // 在 1.20.1 userdev 下 int 重载会被错误匹配到 double 方法导致 InvalidInjectionException。
     // libs/IMBlocker-forge-5.4.6.1-devfix.jar 已移除 int 注入，仅保留 double。
-    runtimeOnly fg.deobf("libs:IMBlocker-forge:5.4.6.1-devfix")
-    implementation fg.deobf("libs:cloth-config-forge:11.1.136")
+    def imBlocker = file('libs/IMBlocker-forge-5.4.6.1-devfix.jar')
+    if (imBlocker.exists()) {
+        runtimeOnly fg.deobf("libs:IMBlocker-forge:5.4.6.1-devfix")
+    } else {
+        logger.warn("libs/IMBlocker-forge-5.4.6.1-devfix.jar not found, skipping optional dev dependency")
+    }
+    implementation fg.deobf("curse.maven:cloth-config-348521:5729105")
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
 }
 
 // 历史任务：曾把生产 jar 拷进 run/mods，在 userdev 下不可靠。

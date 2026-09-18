@@ -19,7 +19,7 @@ public final class ChatBarConfig {
         GLOBAL_VISIBLE = builder.define("GlobalChatVisible", true);
 
         builder.comment("Whether to require @ prefix for maid chat");
-        REQUIRE_PREFIX = builder.define("RequirePrefix", false);
+        REQUIRE_PREFIX = builder.define("RequirePrefix", true);
 
         builder.comment("Auto chat range when no prefix (0 = disabled)");
         AUTO_CHAT_RANGE = builder.defineInRange("AutoChatRange", 5.0, 0.0, 64.0);

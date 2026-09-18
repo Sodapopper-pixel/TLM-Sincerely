@@ -26,13 +26,20 @@ side = "BOTH"
 [[dependencies.tlm_sincerely]]
 modId = "touhou_little_maid"
 mandatory = true
-versionRange = "[1.5.1,)"
+versionRange = "[1.5.3,)"
 ordering = "AFTER"
 side = "BOTH"
 
 [[dependencies.tlm_sincerely]]
 modId = "cloth_config"
 mandatory = true
+versionRange = "[11,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.tlm_sincerely]]
+modId = "jade"
+mandatory = false
 versionRange = "[11,)"
 ordering = "AFTER"
 side = "BOTH"

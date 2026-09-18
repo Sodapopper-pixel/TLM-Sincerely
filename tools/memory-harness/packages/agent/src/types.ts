@@ -46,6 +46,7 @@ export interface LLMResponse {
 export interface LLMRequestOptions {
   temperature?: number;
   model?: string;
+  signal?: AbortSignal | undefined;
 }
 
 export interface LLMTransport {

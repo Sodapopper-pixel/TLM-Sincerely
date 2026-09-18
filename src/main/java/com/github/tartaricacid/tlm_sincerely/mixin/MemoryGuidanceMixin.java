@@ -23,6 +23,10 @@ public abstract class MemoryGuidanceMixin {
             Forget only when the player explicitly asks. Capacity is limited; when full, the oldest archive entry is evicted automatically.
             Use search to find old memories, recall to read full detail.""";
 
+    private static final String ROUTING_TEMPLATE = """
+            You are in the maid entity @%s, and tool-call directives will act on that entity. \
+            Your self identity and persona come from the character setting, not from @%s.""";
+
     @Redirect(
             method = "buildMessage",
             at = @At(
@@ -30,10 +34,12 @@ public abstract class MemoryGuidanceMixin {
                     target = "Lcom/github/tartaricacid/touhoulittlemaid/ai/manager/entity/summary/HistorySummaryManager;appendSummaryMessage(Ljava/util/List;)V"
             )
     )
-    private void injectMemoryGuidance(HistorySummaryManager manager, List<LLMMessage> list) {
+    private void injectSincerelyGuidance(HistorySummaryManager manager, List<LLMMessage> list) {
+        MaidAIChatManager self = (MaidAIChatManager) (Object) this;
+        EntityMaid maid = self.getMaid();
+        String routingName = maid.getName().getString();
+        list.add(LLMMessage.systemChat(maid, ROUTING_TEMPLATE.formatted(routingName, routingName)));
         if (MemoryConfig.ENABLED.get() && MemoryConfig.MEMORY_GUIDANCE.get()) {
-            MaidAIChatManager self = (MaidAIChatManager) (Object) this;
-            EntityMaid maid = self.getMaid();
             list.add(LLMMessage.systemChat(maid, GUIDANCE_TEXT));
         }
         manager.appendSummaryMessage(list);

@@ -2,7 +2,6 @@ package com.github.tartaricacid.tlm_sincerely.priority.detection;
 
 import com.github.tartaricacid.tlm_sincerely.config.subconfig.PriorityConfig;
 import com.github.tartaricacid.tlm_sincerely.priority.TaskDetectionRuntimeState;
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPreset;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.compat.AutoWorkCompatService;
 import com.github.tartaricacid.touhoulittlemaid.api.task.IAttackTask;
 import com.github.tartaricacid.touhoulittlemaid.api.task.IMaidTask;
@@ -37,12 +36,11 @@ public final class TaskDetectionScheduler {
     private final Map<java.util.UUID, Integer> maidJobRoundRobinStarts = new HashMap<>();
 
     /**
-     * Per-maid work order. The {@link AutoWorkPreset} may be null when
-     * the caller has already verified the maid has no configured tasks
-     * (e.g. empty preset) — in that case the scheduler simply skips
-     * detection for that maid.
+     * Per-maid work order taken from the maid's bound snapshot. The order may
+     * be empty when the maid has no configured tasks; the scheduler then
+     * simply skips detection for that maid.
      */
-    public record MaidPresetJob(EntityMaid maid, AutoWorkPreset preset) {
+    public record MaidPresetJob(EntityMaid maid, List<ResourceLocation> order) {
     }
 
     public void clearMaid(java.util.UUID maidId) {
@@ -60,8 +58,8 @@ public final class TaskDetectionScheduler {
         int remainingBlocks = blockCap;
         int remainingPaths = pathCap;
         for (MaidPresetJob job : jobs) {
-            if (job.preset() != null) {
-                runtime.prepareForceRescan(job.maid(), job.preset().getOrder());
+            if (job.order() != null) {
+                runtime.prepareForceRescan(job.maid(), job.order());
             }
         }
         int forceRescanMaidCount = runtime.forceRescanMaidCount();
@@ -180,12 +178,8 @@ public final class TaskDetectionScheduler {
         int skippedPolicy = 0;
         for (MaidPresetJob mpj : jobs) {
             EntityMaid maid = mpj.maid();
-            AutoWorkPreset preset = mpj.preset();
-            if (preset == null) {
-                continue;
-            }
-            List<ResourceLocation> order = preset.getOrder();
-            if (order.isEmpty()) {
+            List<ResourceLocation> order = mpj.order();
+            if (order == null || order.isEmpty()) {
                 continue;
             }
             ResourceLocation currentUid = maid.getTask().getUid();
@@ -208,7 +202,8 @@ public final class TaskDetectionScheduler {
                 }
                 TaskWorkDetector detector = TaskWorkDetectorRegistry.resolve(task);
                 AutoWorkCompatService compatService = AutoWorkCompatService.getOrNull(maid.level().getServer());
-                if (compatService != null && !compatService.isAutoScheduleAllowed(taskUid)) {
+                if (compatService != null && !compatService.isAutoScheduleAllowed(taskUid,
+                        PriorityConfig.FORCE_ENABLE_PRESELECTED.get())) {
                     MaidDetectionCache cache = runtime.getDetectionCache(maid);
                     boolean forceRescan = runtime.isForceRescanPending(maid, taskUid);
                     if (forceRescan || cache.isDue(taskUid, currentTick, 20)) {

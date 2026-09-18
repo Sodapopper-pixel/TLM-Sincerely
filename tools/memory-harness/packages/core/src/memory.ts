@@ -97,7 +97,7 @@ export class MaidMemory {
   }
 
   getMemories(): Map<string, MemoryEntry> {
-    return this.memories;
+    return new Map(this.memories);
   }
 
   putRaw(key: string, entry: MemoryEntry): void {

@@ -3,6 +3,8 @@ package com.github.tartaricacid.tlm_sincerely.priority.detection.compat;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.Availability;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.DetectionContext;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.DetectionResult;
+import com.github.tartaricacid.tlm_sincerely.priority.detection.HardToolRequirement;
+import com.github.tartaricacid.tlm_sincerely.priority.detection.MaidHardToolService;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.TaskScanCursor;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.TaskWorkDetector;
 import com.github.tartaricacid.touhoulittlemaid.api.task.IMaidTask;
@@ -24,6 +26,11 @@ import java.util.Optional;
  * Read-only equivalent of TLM 1.5.3 TaskFishing + MaidFindSitTask + MaidRideFindWaterTask.
  * Never mounts a seat, casts a hook, or writes brain memory.
  *
+ * <p>Tool precondition: a castable fishing rod in the main hand <b>or</b> the
+ * backpack (TLM's own {@code onFunctionCallSwitch} equips from the backpack;
+ * the automatic switch path must call {@link MaidHardToolService#equipTaskRequirement}
+ * before {@code setTask} so the rod lands in the main hand).
+ *
  * <p>Riding maids run the 6 x 3 water scan of {@code MaidRideFindWaterTask(6, 3)}
  * (horizontal rings up to 5, vertical layers {@code -1, 0, -2, 1, -3, 2, -4} — the
  * same {@link TaskScanCursor} offsets as TLM's {@code y - 1} loop). Idle maids look
@@ -32,6 +39,9 @@ import java.util.Optional;
  */
 public final class BuiltinFishingDetector implements TaskWorkDetector {
     public static final ResourceLocation UID = new ResourceLocation("touhou_little_maid", "fishing");
+    /** 硬性工具：可抛竿的钓鱼竿，主手或背包存在即可（装备动作由 {@link MaidHardToolService} 完成）。 */
+    public static final HardToolRequirement REQUIRED_TOOL = new HardToolRequirement(
+            "fishing_rod", stack -> stack.canPerformAction(ToolActions.FISHING_ROD_CAST));
     private static final int WATER_SEARCH_RANGE = 6;
     private static final int WATER_VERTICAL_RANGE = 3;
     private static final double SIT_CLOSE_ENOUGH_SQR = 4.0D;
@@ -54,7 +64,7 @@ public final class BuiltinFishingDetector implements TaskWorkDetector {
             context.setCursor(null);
             return unavailable(context, task, "TASK_DISABLED");
         }
-        if (!maid.getMainHandItem().canPerformAction(ToolActions.FISHING_ROD_CAST)) {
+        if (!MaidHardToolService.hasAny(maid, REQUIRED_TOOL)) {
             context.setCursor(null);
             return unavailable(context, task, "FISHING_ROD_REQUIRED");
         }

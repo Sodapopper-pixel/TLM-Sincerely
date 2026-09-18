@@ -3,10 +3,9 @@ package com.github.tartaricacid.tlm_sincerely.priority;
 import com.github.tartaricacid.tlm_sincerely.SincerelyExtension;
 import com.github.tartaricacid.tlm_sincerely.config.subconfig.PriorityConfig;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkInternalSetTaskGuard;
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPreset;
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPresetService;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkState;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkStateService;
+import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkTaskDataKeys;
 import com.github.tartaricacid.tlm_sincerely.priority.decision.MaidSwitchState;
 import com.github.tartaricacid.tlm_sincerely.priority.decision.TaskSwitchDecisionEngine;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.Availability;
@@ -23,6 +22,7 @@ import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.MemoryStatus;
 import net.minecraft.world.entity.schedule.Activity;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.event.entity.EntityLeaveLevelEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
@@ -35,30 +35,26 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 /**
- * Server tick driver for the auto work switch (T-2 B1).
+ * Server tick driver for the auto work switch.
  *
- * <p>Filter contract (per the v2 plan):
+ * <p>Filter contract:
  * <ol>
  *   <li>Only maids whose {@link Activity} is {@code WORK} are considered.</li>
  *   <li>Only maids with {@link AutoWorkState#enabled()} {@code = true} are
- *       actually driven through the scheduler / decision engine.</li>
+ *       driven through the scheduler / decision engine.</li>
  *   <li>The global {@link PriorityConfig#ENABLED} switch only pauses
  *       scheduling; it never calls {@code setTask}, never clears
  *       {@link AutoWorkState} and never touches the real task.</li>
- *   <li>If {@link AutoWorkStateService} is not bound (dedicated server
- *       race, mid-unload, etc.) the handler returns early and does
- *       nothing — the conservative safe default.</li>
+ *   <li>Scheduling reads only the maid's bound snapshot order — the preset
+ *       library is private to each client and is never consulted here.</li>
  * </ol>
- *
- * <p>The handler no longer reads {@link TaskPriorityManager}; legacy
- * preset data remains only for the GUI and AI Tool and is not part of
- * the decision path.
  */
 @Mod.EventBusSubscriber(modid = SincerelyExtension.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class TaskAutoSwitchHandler {
@@ -70,6 +66,9 @@ public final class TaskAutoSwitchHandler {
     private static final Map<UUID, ImmediateEvaluationRequest> IMMEDIATE_EVALUATION_REQUESTS = new HashMap<>();
     /** Maids already restored after the current server instance rebound. */
     private static final Set<UUID> SERVER_REBIND_RESTORED = new HashSet<>();
+    /** Cached UUIDs of WORK maids for the current server, maintained via lifecycle events. */
+    private static final Map<MinecraftServer, Set<UUID>> WORKING_MAIDS = new IdentityHashMap<>();
+    private static final int RECONCILIATION_INTERVAL = 40;
 
     private TaskAutoSwitchHandler() {
     }
@@ -79,6 +78,7 @@ public final class TaskAutoSwitchHandler {
         IMMEDIATE_EVALUATION_REQUESTS.clear();
         SERVER_REBIND_RESTORED.clear();
         TaskDetectionRuntimeState.start(event.getServer());
+        WORKING_MAIDS.put(event.getServer(), new HashSet<>());
     }
 
     @SubscribeEvent
@@ -86,6 +86,22 @@ public final class TaskAutoSwitchHandler {
         IMMEDIATE_EVALUATION_REQUESTS.clear();
         SERVER_REBIND_RESTORED.clear();
         TaskDetectionRuntimeState.stop(event.getServer());
+        WORKING_MAIDS.remove(event.getServer());
+    }
+
+    @SubscribeEvent
+    public static void onEntityJoinLevel(EntityJoinLevelEvent event) {
+        if (event.getEntity() instanceof EntityMaid maid && event.getLevel() instanceof ServerLevel level) {
+            if (maid.getScheduleDetail() == Activity.WORK) {
+                WORKING_MAIDS.computeIfAbsent(level.getServer(), s -> new HashSet<>()).add(maid.getUUID());
+            }
+            // Legacy data has only a preset id: bake the bound snapshot from
+            // the frozen seed as soon as the maid is loaded.
+            AutoWorkStateService stateService = AutoWorkStateService.getOrNull(level.getServer());
+            if (stateService != null && maid.getData(AutoWorkTaskDataKeys.STATE_KEY) != null) {
+                stateService.ensureBoundSnapshot(maid);
+            }
+        }
     }
 
     @SubscribeEvent
@@ -93,6 +109,10 @@ public final class TaskAutoSwitchHandler {
         if (event.getEntity() instanceof EntityMaid maid && event.getLevel() instanceof ServerLevel level) {
             IMMEDIATE_EVALUATION_REQUESTS.remove(maid.getUUID());
             TaskDetectionRuntimeState.clearMaid(level.getServer(), maid.getUUID());
+            Set<UUID> cached = WORKING_MAIDS.get(level.getServer());
+            if (cached != null) {
+                cached.remove(maid.getUUID());
+            }
         }
     }
 
@@ -101,6 +121,10 @@ public final class TaskAutoSwitchHandler {
         if (event.getEntity() instanceof EntityMaid maid && maid.level() instanceof ServerLevel level) {
             IMMEDIATE_EVALUATION_REQUESTS.remove(maid.getUUID());
             TaskDetectionRuntimeState.clearMaid(level.getServer(), maid.getUUID());
+            Set<UUID> cached = WORKING_MAIDS.get(level.getServer());
+            if (cached != null) {
+                cached.remove(maid.getUUID());
+            }
         }
     }
 
@@ -137,47 +161,19 @@ public final class TaskAutoSwitchHandler {
                 maid.getUUID(), generation, forceRescan, request.reason());
     }
 
-    /**
-     * Invalidates every enabled loaded maid currently bound to one preset.
-     * Preset mutation paths share this entry point so they cannot miss an
-     * individual packet or Agent action.
-     */
-    public static int requestPresetRescan(MinecraftServer server, java.util.UUID presetId, String reason) {
-        AutoWorkStateService stateService = AutoWorkStateService.getOrNull(server);
-        if (stateService == null || presetId == null) {
-            return 0;
-        }
-        int count = 0;
-        for (ServerLevel level : server.getAllLevels()) {
-            for (Entity entity : level.getAllEntities()) {
-                if (!(entity instanceof EntityMaid maid)) {
-                    continue;
-                }
-                AutoWorkState state = stateService.getState(maid);
-                if (state.enabled() && presetId.equals(state.presetId())) {
-                    requestImmediateEvaluation(maid, reason, true);
-                    count++;
-                }
-            }
-        }
-        return count;
-    }
-
     /** Restores scheduler evidence after a server instance creates fresh runtime state. */
     public static int requestServerRebindRescans(MinecraftServer server) {
         AutoWorkStateService stateService = AutoWorkStateService.getOrNull(server);
-        AutoWorkPresetService presetService = AutoWorkPresetService.getOrNull(server);
-        if (stateService == null || presetService == null) {
+        if (stateService == null) {
             return 0;
         }
         int restored = 0;
         for (ServerLevel level : server.getAllLevels()) {
             for (Entity entity : level.getAllEntities()) {
-                restored += restoreMaidIfNeeded(maidOrNull(entity), stateService, presetService);
+                restored += restoreMaidIfNeeded(maidOrNull(entity), stateService);
             }
         }
-        LOGGER.info("[TaskState] SERVER_REBIND restoredMaids={} presets={}", restored,
-                presetService.listPresets().size());
+        LOGGER.info("[TaskState] SERVER_REBIND restoredMaids={}", restored);
         return restored;
     }
 
@@ -202,15 +198,18 @@ public final class TaskAutoSwitchHandler {
 
         MinecraftServer server = event.getServer();
         AutoWorkStateService stateService = AutoWorkStateService.getOrNull(server);
-        AutoWorkPresetService presetService = AutoWorkPresetService.getOrNull(server);
-        // Conservative: if either service is not bound, skip this tick.
-        // This covers dedicated-server reload races, late ticks after
-        // server stop, and any future lifecycle reorderings.
-        if (stateService == null || presetService == null) {
+        // Conservative: if the service is not bound, skip this tick.
+        if (stateService == null) {
             return;
         }
 
         long currentTick = server.getTickCount();
+
+        // Periodic reconciliation so Activity changes and edge-case joins
+        // do not leave the cache stale between lifecycle events.
+        if (currentTick % RECONCILIATION_INTERVAL == 0) {
+            reconcileWorkingMaids(server);
+        }
 
         // First pass: collect working maids so we can build the runtime
         // snapshot and only then filter by AutoWorkState (the state
@@ -224,10 +223,8 @@ public final class TaskAutoSwitchHandler {
         TaskDetectionRuntimeState runtime = TaskDetectionRuntimeState.get(server);
         runtime.beginTick(currentTick, loadedMaidIds);
 
-        // Second pass: build per-maid preset jobs and run the scheduler.
-        // A maid without a usable preset is silently skipped (its
-        // AutoWorkState.enabled is still respected — the filter happens
-        // here).
+        // Second pass: build per-maid orders from the bound snapshots and run
+        // the scheduler. A maid without a baked order is silently skipped.
         List<TaskDetectionScheduler.MaidPresetJob> schedulerJobs = new ArrayList<>();
         List<AutoWorkMaid> autoMaids = new ArrayList<>();
         for (EntityMaid maid : workingMaids) {
@@ -235,20 +232,17 @@ public final class TaskAutoSwitchHandler {
             if (!state.enabled()) {
                 continue;
             }
-            AutoWorkPreset preset = presetService.resolveForMaid(state);
-            if (preset == null) {
-                // No preset library is available for this maid; skip
-                // without touching the real task. This is intentionally
-                // distinct from "preset exists but is empty" — the
-                // latter still goes through detection so a future add
-                // is observed.
-                LOGGER.debug("[TaskAutoSwitch] maid={} has no resolvable preset; skipping",
-                        maid.getUUID());
+            AutoWorkState bound = stateService.ensureBoundSnapshot(maid);
+            List<ResourceLocation> order = bound.order();
+            if (order.isEmpty()) {
+                // An empty bound order is a legal configuration: the maid
+                // keeps whatever real task it has and we never touch it.
+                LOGGER.debug("[TaskAutoSwitch] maid={} has an empty bound order; skipping", maid.getUUID());
                 continue;
             }
-            restoreMaidIfNeeded(maid, stateService, presetService);
-            schedulerJobs.add(new TaskDetectionScheduler.MaidPresetJob(maid, preset));
-            autoMaids.add(new AutoWorkMaid(maid, preset));
+            restoreMaidIfNeeded(maid, stateService);
+            schedulerJobs.add(new TaskDetectionScheduler.MaidPresetJob(maid, order));
+            autoMaids.add(new AutoWorkMaid(maid, bound.presetId(), order));
         }
         TaskDetectionScheduler.SchedulerStats budgetStats = runtime.scheduler().tick(runtime, schedulerJobs, currentTick);
         LOGGER.debug("[TaskBudget] tick={} enabledMaids={} dueJobs={}/{} block={}/{} path={}/{} "
@@ -258,41 +252,58 @@ public final class TaskAutoSwitchHandler {
                 budgetStats.blockBudgetExhausted(), budgetStats.pathBudgetExhausted(),
                 budgetStats.forceRescanMaidCount(), budgetStats.skippedNoDetector(), budgetStats.skippedPolicy());
 
-        // Third pass: drive the decision engine per maid with its
-        // resolved preset. The preset's list order is the authoritative
-        // priority; there is no global active preset any more.
+        // Third pass: drive the decision engine per maid with its bound
+        // order. The order list is the authoritative priority; there is no
+        // global active preset any more.
         boolean decisionTick = currentTick % PriorityConfig.COOLDOWN.get() == 0;
         for (AutoWorkMaid am : autoMaids) {
             EntityMaid maid = am.maid();
-            AutoWorkPreset preset = am.preset();
-            List<ResourceLocation> sortedTasks = preset.getOrder();
-            // An empty preset is a legal configuration: the maid keeps
-            // whatever real task it has and we never touch it. This
-            // makes it safe for a user to set the order list to "no
-            // tasks" and observe no switching, instead of being
-            // yanked back to default.
-            if (sortedTasks.isEmpty()) {
-                continue;
-            }
+            List<ResourceLocation> sortedTasks = am.order();
             MaidDetectionCache cache = runtime.getDetectionCache(maid);
             MaidSwitchState state = runtime.getSwitchState(maid);
             long generation = runtime.getDetectionGeneration(maid);
             ImmediateEvaluationRequest immediateRequest = IMMEDIATE_EVALUATION_REQUESTS.remove(maid.getUUID());
-            boolean attackHandled = DECISION_ENGINE.handleExperimentalAttackPreempt(maid, preset, sortedTasks,
+            observeMaidBusy(maid, cache, state, currentTick, generation);
+            boolean attackHandled = DECISION_ENGINE.handleExperimentalAttackPreempt(maid, sortedTasks,
                     cache, state, currentTick, generation);
             if (!attackHandled && (immediateRequest != null || decisionTick
                     || cache.hasDefinitiveUpdateAt(generation, currentTick))) {
-                DECISION_ENGINE.evaluateNormalSwitch(maid, preset, sortedTasks, cache, state, currentTick, generation);
+                DECISION_ENGINE.evaluateNormalSwitch(maid, sortedTasks, cache, state, currentTick, generation);
                 if (immediateRequest != null) {
                     LOGGER.debug("[TaskAutoSwitch] immediate evaluation completed maid={} preset={} generation={} "
                                     + "reason={} freshTaskCount={} staleIgnoredCount={} task={}",
-                            maid.getUUID(), preset.getId(), generation, immediateRequest.reason(),
+                            maid.getUUID(), am.presetId(), generation, immediateRequest.reason(),
                             cache.freshResultCount(generation, currentTick), cache.staleIgnoredCount(),
                             maid.getTask().getUid());
                 }
             }
             traceTaskStartup(maid, cache, state, currentTick, generation);
         }
+    }
+
+    /**
+     * Per-tick busy observation for the busy guard: records when the maid's
+     * brain shows active work for the current task (ATTACK_TARGET /
+     * WALK_TARGET / PATH / TARGET_POS) and how long the current task has been
+     * continuously UNAVAILABLE. Runs for every auto-work maid on every tick
+     * (not only decision ticks) so the guard always has fresh evidence.
+     * Observation runs before the current tick's decision, including for a
+     * maid that has never been switched by auto work. The current busy period
+     * is anchored by {@link MaidSwitchState#busyStartTick()} and remains
+     * bounded by the configured hard ceiling.
+     */
+    private static void observeMaidBusy(EntityMaid maid, MaidDetectionCache cache, MaidSwitchState state,
+                                        long currentTick, long generation) {
+        var brain = maid.getBrain();
+        if (brain.checkMemory(MemoryModuleType.ATTACK_TARGET, MemoryStatus.VALUE_PRESENT)
+                || brain.checkMemory(MemoryModuleType.WALK_TARGET, MemoryStatus.VALUE_PRESENT)
+                || brain.checkMemory(MemoryModuleType.PATH, MemoryStatus.VALUE_PRESENT)
+                || brain.checkMemory(InitEntities.TARGET_POS.get(), MemoryStatus.VALUE_PRESENT)) {
+            state.markBusyObserved(currentTick, PriorityConfig.BUSY_IDLE_FORGIVE_TICKS.get());
+        }
+        ResourceLocation currentUid = maid.getTask().getUid();
+        DetectionResult currentResult = cache.getFresh(currentUid, generation, currentTick);
+        state.trackCurrentAvailability(currentUid, currentResult.availability(), currentTick);
     }
 
     private static void traceTaskStartup(EntityMaid maid, MaidDetectionCache cache,
@@ -344,30 +355,79 @@ public final class TaskAutoSwitchHandler {
     }
 
     private static List<EntityMaid> findWorkingMaids(MinecraftServer server) {
+        Set<UUID> cached = WORKING_MAIDS.get(server);
+        if (cached == null) {
+            // Cold start / missing cache: rebuild once. An existing empty set
+            // is authoritative and must not trigger a full entity scan every tick.
+            List<EntityMaid> maids = new ArrayList<>();
+            for (ServerLevel level : server.getAllLevels()) {
+                for (Entity entity : level.getEntities().getAll()) {
+                    if (entity instanceof EntityMaid maid && maid.isAlive()
+                            && maid.getScheduleDetail() == Activity.WORK) {
+                        maids.add(maid);
+                    }
+                }
+            }
+            WORKING_MAIDS.put(server, maids.stream()
+                    .map(EntityMaid::getUUID)
+                    .collect(java.util.stream.Collectors.toCollection(HashSet::new)));
+            return maids;
+        }
+        if (cached.isEmpty()) {
+            return List.of();
+        }
         List<EntityMaid> maids = new ArrayList<>();
+        List<UUID> stale = new ArrayList<>();
+        for (UUID uuid : cached) {
+            boolean found = false;
+            for (ServerLevel level : server.getAllLevels()) {
+                Entity entity = level.getEntity(uuid);
+                if (entity instanceof EntityMaid maid && maid.isAlive()
+                        && maid.getScheduleDetail() == Activity.WORK) {
+                    maids.add(maid);
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                stale.add(uuid);
+            }
+        }
+        if (!stale.isEmpty()) {
+            cached.removeAll(stale);
+        }
+        return maids;
+    }
+
+    private static void reconcileWorkingMaids(MinecraftServer server) {
+        Set<UUID> reconciled = new HashSet<>();
         for (ServerLevel level : server.getAllLevels()) {
             for (Entity entity : level.getEntities().getAll()) {
                 if (entity instanceof EntityMaid maid && maid.isAlive()
                         && maid.getScheduleDetail() == Activity.WORK) {
-                    maids.add(maid);
+                    reconciled.add(maid.getUUID());
                 }
             }
         }
-        return maids;
+        WORKING_MAIDS.put(server, reconciled);
     }
 
     private static EntityMaid maidOrNull(Entity entity) {
         return entity instanceof EntityMaid maid ? maid : null;
     }
 
-    private static int restoreMaidIfNeeded(EntityMaid maid, AutoWorkStateService stateService,
-                                           AutoWorkPresetService presetService) {
+    private static int restoreMaidIfNeeded(EntityMaid maid, AutoWorkStateService stateService) {
         if (maid == null || !maid.isAlive() || maid.getScheduleDetail() != Activity.WORK
                 || SERVER_REBIND_RESTORED.contains(maid.getUUID())) {
             return 0;
         }
+        // Maids that finished loading before the server services were bound
+        // still need their legacy "preset id only" state baked.
+        if (maid.getData(AutoWorkTaskDataKeys.STATE_KEY) != null) {
+            stateService.ensureBoundSnapshot(maid);
+        }
         AutoWorkState state = stateService.getState(maid);
-        if (!state.enabled() || presetService.resolveForMaid(state) == null) {
+        if (!state.enabled()) {
             return 0;
         }
         SERVER_REBIND_RESTORED.add(maid.getUUID());
@@ -376,12 +436,11 @@ public final class TaskAutoSwitchHandler {
     }
 
     /**
-     * Internal pairing of a maid with its resolved per-tick preset.
+     * Internal pairing of a maid with its bound order for this tick.
      * Distinct from {@link TaskDetectionScheduler.MaidPresetJob} so the
-     * decision pass can iterate its own list (the scheduler also keeps
-     * its own copy for the detection pass).
+     * decision pass can iterate its own list.
      */
-    private record AutoWorkMaid(EntityMaid maid, AutoWorkPreset preset) {
+    private record AutoWorkMaid(EntityMaid maid, UUID presetId, List<ResourceLocation> order) {
     }
 
     private record ImmediateEvaluationRequest(String reason, long generation, boolean forceRescan) {

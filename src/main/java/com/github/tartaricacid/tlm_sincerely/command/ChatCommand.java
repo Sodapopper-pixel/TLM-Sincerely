@@ -24,6 +24,7 @@ import java.util.concurrent.CompletableFuture;
 
 public final class ChatCommand {
     private static final String DEFAULT_LANGUAGE = "en_us";
+    private static final int MAX_MAID_NAME_LENGTH = 32;
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("tlmchat")
@@ -47,6 +48,11 @@ public final class ChatCommand {
                                         .executes(ChatCommand::chatWithUuid))))
                 .then(Commands.literal("list")
                         .executes(ChatCommand::listMaids))
+                .then(Commands.literal("rename")
+                        .then(Commands.argument("maid", UnicodeWordArgument.word("maid"))
+                                .suggests(ChatCommand::suggestMaidNames)
+                                .then(Commands.argument("name", StringArgumentType.greedyString())
+                                        .executes(ChatCommand::renameMaid))))
                 .then(Commands.argument("message", StringArgumentType.greedyString())
                         .executes(ChatCommand::chatWithNearest))
         );
@@ -203,6 +209,50 @@ public final class ChatCommand {
                 .withStyle(ChatFormatting.GRAY));
 
         return Command.SINGLE_SUCCESS;
+    }
+
+    private static int renameMaid(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ServerPlayer player = context.getSource().getPlayerOrException();
+        String maidSelector = UnicodeWordArgument.get(context, "maid");
+        String newName = StringArgumentType.getString(context, "name").strip();
+
+        EntityMaid maid = resolveMaid(player, maidSelector);
+        if (maid == null) {
+            player.sendSystemMessage(Component.translatable("chat.tlm_sincerely.maid_not_found")
+                    .withStyle(ChatFormatting.RED));
+            return 0;
+        }
+        if (!maid.isOwnedBy(player)) {
+            player.sendSystemMessage(Component.translatable("chat.tlm_sincerely.rename_not_owner")
+                    .withStyle(ChatFormatting.RED));
+            return 0;
+        }
+        if (newName.length() > MAX_MAID_NAME_LENGTH) {
+            player.sendSystemMessage(Component.translatable(
+                    "chat.tlm_sincerely.rename_too_long", MAX_MAID_NAME_LENGTH
+            ).withStyle(ChatFormatting.RED));
+            return 0;
+        }
+
+        if (newName.isEmpty()) {
+            maid.setCustomName(null);
+        } else {
+            maid.setCustomName(Component.literal(newName));
+        }
+        maid.setCustomNameVisible(true);
+
+        String displayName = maid.getName().getString();
+        player.sendSystemMessage(Component.translatable("chat.tlm_sincerely.rename_success", displayName)
+                .withStyle(ChatFormatting.GREEN));
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static EntityMaid resolveMaid(ServerPlayer player, String maidSelector) {
+        if (maidSelector.startsWith("uuid:")) {
+            return MaidFinder.findByUuid(player, maidSelector.substring(5));
+        }
+        FindResult result = MaidFinder.findByName(player, maidSelector);
+        return result != null ? result.maid() : null;
     }
 
     private static void sendChatMessage(EntityMaid maid, ServerPlayer player, String message) {

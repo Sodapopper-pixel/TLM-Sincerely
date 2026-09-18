@@ -8,16 +8,12 @@ import com.github.tartaricacid.tlm_sincerely.priority.detection.TaskWorkDetector
 import com.github.tartaricacid.touhoulittlemaid.api.task.IMaidTask;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.items.IItemHandler;
@@ -39,31 +35,29 @@ import java.util.Set;
  * a single central reflection point ({@link MsmReflect}): the schedule state
  * ({@code MemoryUtil.getCurrentlyWorking}), the pending-placement condition
  * ({@code Conditions.isNothingToPlace}), the placing/resorting target
- * memories (read directly from the maid's brain via
- * {@code MemoryModuleRegistry}, purely read-only), the request-list item and
- * the bound-storage baubles ({@code StorageDefineBauble.getStorages}).
+ * memories plus {@code ViewedInventoryMemory} (read directly from the maid's
+ * brain via {@code MemoryModuleRegistry}, purely read-only), the request-list
+ * item and the bound-storage baubles ({@code StorageDefineBauble.getStorages}).
  *
  * <p>Supported path: PLACE (or the RESORT fallback) — the maid carries
- * items to store and a usable storage block is nearby. A storage block means a
- * block in the addon's {@code maid_storage_manager:default_storage_blocks}
- * datapack tag (or an explicitly bound storage from a
- * {@code StorageDefineBauble}) that exposes an {@code ITEM_HANDLER}
- * capability, reachable via a budgeted path check. REQUEST/CO_WORK schedules
- * and unknown states return UNKNOWN. No addon search behavior is invoked, no
- * chest is opened and no item is ever extracted or inserted.
+ * items to store and a usable storage block is available. Active, explicitly
+ * bound and previously viewed storages are checked before the local scan. A
+ * usable storage follows MSM's ItemHandlerStorage fallback: its block entity
+ * exposes an {@code ITEM_HANDLER} capability. REQUEST/CO_WORK schedules and
+ * unknown states return UNKNOWN. No addon search behavior is invoked, no chest
+ * is opened and no item is ever extracted or inserted.
  *
- * <p>Scan ranges mirror the tree detector: home radius in home mode, 7 blocks
- * otherwise, ±7 vertical (cursor center y shifted up by one so the
- * {@link TaskScanCursor} offset scheme covers exactly {@code center.y ± 7}).
- * Every block state / block entity lookup and every path check is budgeted.
+ * <p>The local fallback scan uses the home radius in home mode or 7 blocks
+ * otherwise and the addon's five-layer vertical search (range 3 with the
+ * cursor's y-1 offset sequence). Every block entity lookup and path check is
+ * budgeted.
  */
 public final class MaidStorageManagerDetector implements TaskWorkDetector {
     public static final ResourceLocation UID = new ResourceLocation("maid_storage_manager", "storage_manage");
-    private static final int STORAGE_VERTICAL_RANGE = 7;
+    private static final int STORAGE_VERTICAL_RANGE = 3;
     private static final int NON_HOME_HORIZONTAL_RANGE = 7;
     private static final int MAX_BOUND_STORAGE_CHECKS = 16;
-    private static final TagKey<Block> DEFAULT_STORAGE_TAG =
-            TagKey.create(Registries.BLOCK, new ResourceLocation("maid_storage_manager", "default_storage_blocks"));
+    private static final int MAX_VIEWED_STORAGE_CHECKS = 32;
 
     @Override
     public boolean supports(IMaidTask task) {
@@ -104,12 +98,13 @@ public final class MaidStorageManagerDetector implements TaskWorkDetector {
         }
 
         Set<BlockPos> bound = new HashSet<>(MsmReflect.readBoundStorages(maid));
+        List<BlockPos> viewed = MsmReflect.readViewedStorages(maid);
 
         // Active MSM target (placing or resorting memory) — validate it directly.
         Object activeTarget = snapshot.placingTarget != null ? snapshot.placingTarget : snapshot.resortingTarget;
         if (activeTarget != null) {
             BlockPos pos = MsmReflect.readStoragePos(activeTarget);
-            if (pos != null && context.consumeBlock() && isUsableStorage(context, pos, bound.contains(pos))
+            if (pos != null && context.consumeBlock() && isUsableStorage(context, pos)
                     && context.consumePathCheck() && maid.canPathReach(pos)) {
                 context.setCursor(null);
                 return available(context, task, pos, "ACTIVE_TARGET_STORAGE");
@@ -126,7 +121,7 @@ public final class MaidStorageManagerDetector implements TaskWorkDetector {
             if (!context.consumeBlock()) {
                 break;
             }
-            if (!isUsableStorage(context, pos, true)) {
+            if (!isUsableStorage(context, pos)) {
                 continue;
             }
             if (!context.consumePathCheck()) {
@@ -138,7 +133,30 @@ public final class MaidStorageManagerDetector implements TaskWorkDetector {
             }
         }
 
-        // Incremental scan over the default storage tag / bound positions.
+        // The addon's placement behavior prioritizes storages remembered in
+        // ViewedInventoryMemory. These targets are not required to be in the
+        // default_storage_blocks tag or inside the local scan radius.
+        int viewedChecked = 0;
+        for (BlockPos pos : viewed) {
+            if (bound.contains(pos) || viewedChecked++ >= MAX_VIEWED_STORAGE_CHECKS) {
+                continue;
+            }
+            if (!context.consumeBlock()) {
+                break;
+            }
+            if (!isUsableStorage(context, pos)) {
+                continue;
+            }
+            if (!context.consumePathCheck()) {
+                return DetectionResult.unknown(task.getUid(), context.currentTick(), "PATH_BUDGET_EXHAUSTED");
+            }
+            if (maid.canPathReach(pos)) {
+                context.setCursor(null);
+                return available(context, task, pos, "VIEWED_STORAGE_REACHABLE");
+            }
+        }
+
+        // Incremental fallback scan for nearby item-handler storages.
         boolean homeMode = maid.isHomeModeEnable();
         BlockPos center = (homeMode ? maid.getRestrictCenter() : maid.blockPosition()).offset(0, 1, 0);
         int horizontalRange = homeMode ? Math.max(0, (int) maid.getRestrictRadius()) : NON_HOME_HORIZONTAL_RANGE;
@@ -157,7 +175,7 @@ public final class MaidStorageManagerDetector implements TaskWorkDetector {
                 cursor = nextCursor;
                 continue;
             }
-            if (!isUsableStorage(context, pos, bound.contains(pos))) {
+            if (!isUsableStorage(context, pos)) {
                 cursor = nextCursor;
                 continue;
             }
@@ -236,17 +254,12 @@ public final class MaidStorageManagerDetector implements TaskWorkDetector {
     }
 
     /**
-     * A usable storage is a block in the addon's default_storage_blocks tag
-     * (or an explicitly bound position) whose block entity exposes an
-     * ITEM_HANDLER capability. Nothing is opened or modified; the capability
-     * is only checked for presence with no side.
+     * Mirrors MSM's ItemHandlerStorage fallback: any block entity exposing an
+     * ITEM_HANDLER is a valid storage target. The default_storage_blocks tag is
+     * only used by MSM when choosing interaction positions, not validity.
      */
-    private static boolean isUsableStorage(DetectionContext context, BlockPos pos, boolean bound) {
+    private static boolean isUsableStorage(DetectionContext context, BlockPos pos) {
         ServerLevel level = context.level();
-        BlockState state = level.getBlockState(pos);
-        if (!state.is(DEFAULT_STORAGE_TAG) && !bound) {
-            return false;
-        }
         BlockEntity blockEntity = level.getBlockEntity(pos);
         if (blockEntity == null) {
             return false;
@@ -294,10 +307,12 @@ public final class MaidStorageManagerDetector implements TaskWorkDetector {
         private static Method getCurrentlyWorking;
         private static Method isNothingToPlace;
         private static Field placingInventoryField;
+        private static Field viewedInventoryField;
         private static Field resortingField;
         private static Method hasTarget;
         private static Method getTarget;
         private static Method storageGetPos;
+        private static Method positionFlatten;
         private static Field requestListItemField;
         private static Method requestListIsIgnored;
         private static Field storageDefineBaubleField;
@@ -377,6 +392,33 @@ public final class MaidStorageManagerDetector implements TaskWorkDetector {
             }
         }
 
+        static List<BlockPos> readViewedStorages(EntityMaid maid) {
+            resolve();
+            if (!available || viewedInventoryField == null || positionFlatten == null) {
+                return List.of();
+            }
+            try {
+                Object memory = readMemory(maid, viewedInventoryField);
+                if (memory == null) {
+                    return List.of();
+                }
+                Object flattened = positionFlatten.invoke(memory);
+                if (!(flattened instanceof java.util.Map<?, ?> map)) {
+                    return List.of();
+                }
+                Set<BlockPos> positions = new HashSet<>();
+                for (Object storage : map.keySet()) {
+                    BlockPos pos = readStoragePos(storage);
+                    if (pos != null) {
+                        positions.add(pos);
+                    }
+                }
+                return new ArrayList<>(positions);
+            } catch (ReflectiveOperationException | RuntimeException exception) {
+                return List.of();
+            }
+        }
+
         static BlockPos readStoragePos(Object storage) {
             resolve();
             if (!available || storage == null) {
@@ -397,19 +439,10 @@ public final class MaidStorageManagerDetector implements TaskWorkDetector {
          */
         private static Object readTargetMemory(EntityMaid maid, Field moduleField) {
             try {
-                Object moduleObject = moduleField.get(null);
-                if (!(moduleObject instanceof RegistryObject<?> registry)) {
+                Object targetMemory = readMemory(maid, moduleField);
+                if (targetMemory == null) {
                     return null;
                 }
-                Object moduleType = registry.get();
-                if (!(moduleType instanceof MemoryModuleType<?> memoryModuleType)) {
-                    return null;
-                }
-                Optional<?> memory = maid.getBrain().getMemory(memoryModuleType);
-                if (memory.isEmpty()) {
-                    return null;
-                }
-                Object targetMemory = memory.get();
                 if (!(boolean) hasTarget.invoke(targetMemory)) {
                     return null;
                 }
@@ -417,6 +450,20 @@ public final class MaidStorageManagerDetector implements TaskWorkDetector {
             } catch (ReflectiveOperationException | RuntimeException exception) {
                 return null;
             }
+        }
+
+        private static Object readMemory(EntityMaid maid, Field moduleField)
+                throws ReflectiveOperationException {
+            Object moduleObject = moduleField.get(null);
+            if (!(moduleObject instanceof RegistryObject<?> registry)) {
+                return null;
+            }
+            Object moduleType = registry.get();
+            if (!(moduleType instanceof MemoryModuleType<?> memoryModuleType)) {
+                return null;
+            }
+            Optional<?> memory = maid.getBrain().getMemory(memoryModuleType);
+            return memory.orElse(null);
         }
 
         private static void resolve() {
@@ -441,7 +488,13 @@ public final class MaidStorageManagerDetector implements TaskWorkDetector {
                             Class.forName("studio.fantasyit.maid_storage_manager.maid.memory.AbstractTargetMemory");
                     hasTarget = targetMemory.getMethod("hasTarget");
                     getTarget = targetMemory.getMethod("getTarget");
-                    Class<?> storage = Class.forName("studio.fantasyit.maid_storage_manager.storage.Storage");
+                    Class<?> storage;
+                    try {
+                        storage = Class.forName("studio.fantasyit.maid_storage_manager.storage.Storage");
+                    } catch (ClassNotFoundException oldMissing) {
+                        // MSM >= 1.15.x: Storage renamed to Target (same getPos contract).
+                        storage = Class.forName("studio.fantasyit.maid_storage_manager.storage.Target");
+                    }
                     storageGetPos = storage.getMethod("getPos");
                     Class<?> itemRegistry =
                             Class.forName("studio.fantasyit.maid_storage_manager.registry.ItemRegistry");
@@ -453,6 +506,15 @@ public final class MaidStorageManagerDetector implements TaskWorkDetector {
                     Class<?> defineBauble =
                             Class.forName("studio.fantasyit.maid_storage_manager.items.StorageDefineBauble");
                     getStorages = defineBauble.getMethod("getStorages", ItemStack.class);
+                    try {
+                        viewedInventoryField = memoryRegistry.getField("VIEWED_INVENTORY");
+                        Class<?> viewedMemory = Class.forName(
+                                "studio.fantasyit.maid_storage_manager.maid.memory.ViewedInventoryMemory");
+                        positionFlatten = viewedMemory.getMethod("positionFlatten");
+                    } catch (ClassNotFoundException | NoSuchMethodException | NoSuchFieldException exception) {
+                        viewedInventoryField = null;
+                        positionFlatten = null;
+                    }
                     available = true;
                 } catch (ClassNotFoundException | NoSuchMethodException | NoSuchFieldException exception) {
                     available = false;

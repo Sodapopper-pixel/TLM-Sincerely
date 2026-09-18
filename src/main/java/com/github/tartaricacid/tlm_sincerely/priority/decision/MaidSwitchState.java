@@ -1,5 +1,6 @@
 package com.github.tartaricacid.tlm_sincerely.priority.decision;
 
+import com.github.tartaricacid.tlm_sincerely.priority.detection.Availability;
 import net.minecraft.resources.ResourceLocation;
 
 public final class MaidSwitchState {
@@ -15,6 +16,18 @@ public final class MaidSwitchState {
     private String lastSwitchReason = "NONE";
     private int reverseSwitchCount;
     private long reverseCooldownEndTick = Long.MIN_VALUE;
+    /** Latest tick brain activity (ATK/WLK/PATH/TGT) was observed for the current task. */
+    private long busyObservedTick = -1;
+    /**
+     * First tick of the current continuous busy period. A sufficiently long
+     * idle gap starts a new period so the hard ceiling applies independently
+     * to later work instead of permanently disabling the guard.
+     */
+    private long busyStartTick = -1;
+    /** Task the {@link #busyUnavailableSinceTick} counter belongs to; resets when the task changes. */
+    private ResourceLocation busyTrackedTaskUid;
+    /** First tick the tracked task was continuously reported UNAVAILABLE; -1 while not unavailable. */
+    private long busyUnavailableSinceTick = -1;
 
     public boolean canSwitchNormally(long currentTick, int minimumHoldTicks) {
         return lastSwitchTick == Long.MIN_VALUE || currentTick < lastSwitchTick
@@ -28,6 +41,7 @@ public final class MaidSwitchState {
         startupMemoryMask = Integer.MIN_VALUE;
         startupBusyObserved = false;
         forcedBrainRefreshDone = false;
+        resetBusyGuard();
         lastSwitchReason = reason;
         if (!normalSwitch) {
             clearReverseTracking();
@@ -89,6 +103,81 @@ public final class MaidSwitchState {
 
     public long reverseCooldownEndTick() {
         return reverseCooldownEndTick;
+    }
+
+    /**
+     * Records the latest tick the maid's brain showed active work for the
+     * current task. Called every tick while brain activity is present, so the
+     * guard always has fresh evidence even between decision ticks.
+     */
+    public void markBusyObserved(long currentTick, int idleForgiveTicks) {
+        if (busyObservedTick < 0 || currentTick < busyObservedTick
+                || currentTick - busyObservedTick > idleForgiveTicks) {
+            busyStartTick = currentTick;
+        }
+        busyObservedTick = currentTick;
+    }
+
+    /**
+     * True while brain activity was observed recently enough that the current
+     * task can be considered "actually working". An idle brain (no activity
+     * for {@code maxIdleTicks}) always releases the guard.
+     */
+    public boolean isBusyActive(long currentTick, int maxIdleTicks) {
+        return busyObservedTick != -1 && currentTick >= busyObservedTick
+                && currentTick - busyObservedTick <= maxIdleTicks;
+    }
+
+    /**
+     * Tracks how long the current task has been continuously UNAVAILABLE.
+     * The counter resets whenever the task changes or becomes AVAILABLE;
+     * UNKNOWN and EXPIRED results keep the existing timer so the guard
+     * does not lose evidence.
+     */
+    public void trackCurrentAvailability(ResourceLocation taskUid, Availability availability, long currentTick) {
+        if (taskUid == null) {
+            return;
+        }
+        if (availability == Availability.AVAILABLE) {
+            busyTrackedTaskUid = null;
+            busyUnavailableSinceTick = -1;
+            return;
+        }
+        if (availability == Availability.UNKNOWN) {
+            // UNKNOWN/EXPIRED may bridge two definitive UNAVAILABLE samples,
+            // but it must never create an unavailable period by itself.
+            if (busyTrackedTaskUid != null && !taskUid.equals(busyTrackedTaskUid)) {
+                busyTrackedTaskUid = null;
+                busyUnavailableSinceTick = -1;
+            }
+            return;
+        }
+        if (!taskUid.equals(busyTrackedTaskUid) || busyUnavailableSinceTick < 0) {
+            busyTrackedTaskUid = taskUid;
+            busyUnavailableSinceTick = currentTick;
+        }
+    }
+
+    /**
+     * True once the current task has been continuously UNAVAILABLE for at
+     * least {@code holdTicks}; with {@code holdTicks = 0} this is always true
+     * while the task is UNAVAILABLE, releasing the guard immediately.
+     */
+    public boolean isUnavailableHoldElapsed(long currentTick, int holdTicks) {
+        return busyUnavailableSinceTick != -1 && currentTick >= busyUnavailableSinceTick
+                && currentTick - busyUnavailableSinceTick >= holdTicks;
+    }
+
+    public long busyObservedTick() {
+        return busyObservedTick;
+    }
+
+    public long busyStartTick() {
+        return busyStartTick;
+    }
+
+    public long busyUnavailableSinceTick() {
+        return busyUnavailableSinceTick;
     }
 
     public int startupMemoryMask() {
@@ -159,8 +248,16 @@ public final class MaidSwitchState {
         startupBusyObserved = false;
         forcedBrainRefreshDone = false;
         clearReverseTracking();
+        resetBusyGuard();
         lastSwitchReason = "NONE";
         clearAttackPreempt();
+    }
+
+    private void resetBusyGuard() {
+        busyObservedTick = -1;
+        busyStartTick = -1;
+        busyTrackedTaskUid = null;
+        busyUnavailableSinceTick = -1;
     }
 
     private void clearReverseTracking() {

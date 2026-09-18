@@ -7,17 +7,13 @@ import net.minecraft.world.entity.LivingEntity;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Centralised permission checks for auto work switch packet handlers (T-2 A3).
+ * Centralised permission checks for auto work packet handlers.
  *
- * <p>Two policies coexist:
- * <ul>
- *   <li>Maid-targeted operations ({@link #canControlMaid}) require the
- *       player to be the maid owner or a level-2 operator. This matches
- *       the existing maid GUI ownership contract.</li>
- *   <li>Preset library operations ({@link #canEditLibrary}) require a
- *       level-2 operator, because preset changes are server-wide and
- *       can affect every maid.</li>
- * </ul>
+ * <p>The preset library is private to each client, so there is no library
+ * permission any more: only maid-targeted operations remain, and those require
+ * the player to be the maid owner or a level-2 operator (matching the maid GUI
+ * ownership contract). Client-side push commands are additionally limited by
+ * the server-side broadcast check in {@code AutoWorkPushService}.
  */
 public final class AutoWorkPermission {
     private AutoWorkPermission() {
@@ -38,14 +34,6 @@ public final class AutoWorkPermission {
             return owner == null || owner.level().getServer() == player.server;
         }
         return false;
-    }
-
-    /** True if {@code player} is allowed to mutate the shared preset library. */
-    public static boolean canEditLibrary(@Nullable ServerPlayer player) {
-        if (player == null) {
-            return false;
-        }
-        return player.hasPermissions(2);
     }
 
     /**

@@ -15,6 +15,10 @@ src/main/java/com/github/tartaricacid/tlm_sincerely/
 ├── command/
 │   ├── ChatCommand.java          # 对话命令
 │   ├── MemoryCommand.java        # 记忆管理命令
+│   ├── ConfirmCommand.java       # /tlmconfirm 命令确认
+│   ├── CommandClassifier.java    # 命令名单双重判定
+│   ├── MaidCommandExecutor.java  # 主人身份命令执行
+│   ├── CommandConfirmationService.java  # 确认挂起与会话信任
 │   └── UnicodeWordArgument.java  # 中文参数支持
 ├── memory/                       # 女仆记忆持久化
 ├── mixin/                        # Mixin（客户端 + 通用）
@@ -42,7 +46,7 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
 .\gradlew.bat build --no-daemon
 
 # 输出位置
-build/libs/tlm_sincerely-1.20.1-forge-0.1.0.jar
+build/libs/tlm_sincerely-1.20.1-forge-0.2.0-beta.jar
 ```
 
 ---
@@ -270,6 +274,7 @@ Mixin 0.8.5 最大支持 `JAVA_13`，不能写 `JAVA_17`。写错会导致 Mixin
  - `AbstractMaidContainerGui.renderTooltip` 无条件访问 `scheduleButton.isHovered()`
  - 若在 GUI 重建过程中有帧渲染到此方法，`scheduleButton` 尚未初始化会触发 NPE
  - 解决：在 `AbstractMaidContainerGuiMixin` 中对 `renderTooltip` HEAD 注入空值保护
+ - 关键坑：`renderTooltip` 是 override 自 vanilla 的方法，运行时被混淆为 `m_280072_`，注入点**不能写 `remap = false`**（去掉后走 refmap 自动映射）。`remap = false` 只在 userdev 里能过（编译期名字是 `renderTooltip`），发布版必崩 `could not find any targets matching 'renderTooltip'`；而 TLM 自有方法（`taskButtonPressed`、`getTabs`）运行时不混淆，才应保留 `remap = false`
 
 ### FMLCommonSetupEvent 必须注册到 mod event bus
   - `SincerelyExtension` 构造器中的 `MinecraftForge.EVENT_BUS` 是 Forge 事件总线，不会收到 `FMLCommonSetupEvent`
@@ -301,6 +306,13 @@ Mixin 0.8.5 最大支持 `JAVA_13`，不能写 `JAVA_17`。写错会导致 Mixin
   - **代价**：cursor 中心在扫描开始时固定，整轮不刷新；正确语义是"扫完这一轮再换中心"，而不是"持续追踪新位置"
   - **联动**：`PATH_BUDGET_EXHAUSTED` 时保存 `cursor.next()`（跳过当前候选），避免密集候选区（树冠、农场）反复卡在同一位置
 
+### Busy guard：Brain memory 作为"正在干活"证据（T-2）
+  - **症状**：`maid_useful_task:maid_tree` 砍树途中被其他 AVAILABLE 普通任务切走；TreeDetector 全扫一轮附近无自然树即报 `UNAVAILABLE`，确认 2 次后任何确认候选都能接管
+  - **机制**：`TaskAutoSwitchHandler.observeMaidBusy` 每 tick 观察 `ATTACK_TARGET / WALK_TARGET / PATH / InitEntities.TARGET_POS` 任一 PRESENT → `MaidSwitchState.markBusyObserved`；`TaskSwitchDecisionEngine.evaluateNormalSwitch` 最前经 `suppressedByBusyGuard` 拦截正常切换。观察不依赖切换历史：从未被 auto-switch 切换过的女仆（首次启用、手动/外部设置的任务）同样受保护
+  - **不卡死的三个边界**：brain 空闲超过 `BusyIdleForgiveTicks`(60) 放行并结束本次 busy period；`UNAVAILABLE` 确认数达标后最多再 hold `BusyUnavailableHoldTicks`(80)；每段连续 busy period 最多保护 `BusyGuardMaxTicks`(600)，后续经过空闲期再次工作会建立新的 `busyStartTick`
+  - **关键约束**：idle 任务必须显式排除（idle 闲逛也有 WALK_TARGET）；攻击抢占走 `handleExperimentalAttackPreempt` 独立路径天然不受影响；`recordSwitch`/`resetForTickRegression` 必须 `resetBusyGuard()`，否则旧任务 busy 证据残留
+  - **诊断**：guard 阻止时 `[TaskStability] ... reason=BUSY_GUARD_ACTIVE busyLastTick=... unavailableSinceTick=...`（debug 级）
+
 ### MSK 公共 Handler API 与 `IFarmTask` 不能互通
   - **症状**：maidsoulkitchen 0.3.0.9 的 `TaskBerryFarm`/`TaskFruitFarm` 继承自己 `ICompatFarmTask<Handler>`，不是 TLM `IFarmTask` → `instanceof IFarmTask` 检测器恒为 false
   - **根因**：MSK 农场任务用动态 Handler 责任链，但历史代理按 TLM `IFarmTask` 写判定，永远不命中
@@ -314,6 +326,139 @@ Mixin 0.8.5 最大支持 `JAVA_13`，不能写 `JAVA_17`。写错会导致 Mixin
   - 调研时为了字节码证据会在 `studio/`、`com/`、`META-INF/` 临时解压依赖 JAR
   - `.gitignore` 必须显式忽略这些目录；本轮补 `/studio/`、`/com/`、`/META-INF/`、`/assets/`、`/data/`
   - 提交前 `git status` 检查是否有新未追踪的 `*.class`、`.class.json`、附属 mod 资源目录
+
+### 硬性工具需求：Detector 允许背包 + 切换前装备
+  - **症状**：fishing/shears/extinguishing 检测器只认主手工具，背包有钓鱼竿/剪刀/灭火器仍报 `UNAVAILABLE`，女仆永远不切换
+  - **机制**：`HardToolRequirement` + `MaidHardToolService`（`hasAny`/`findBest` 只读查询，`equipTaskRequirement` 装备）；检测器改用 `hasAny` 判定，`CompatDetectorBootstrap` 注册 `taskUid -> 需求` 映射
+  - **装备语义**：按 TLM 1.5.3 `TaskEquipUtil.tryEquipFromBackpack` 的相同算法，只操作 `getAvailableBackpackInv()`（不含手部槽），整槽提取目标工具、将原主手写回该槽，再设置新主手。项目声明兼容 TLM ≥1.5.3，因此不直接链接可能晚于最低版本出现的工具类
+  - **接线位置**：`TaskSwitchDecisionEngine.switchTo` 在 `maid.setTask` 前调用 `equipTaskRequirement(maid, targetUid)`；若检测缓存过期期间工具已被移走并返回 `MISSING`，本次切换中止。自动 `setTask` 不触发 TLM 的 `onFunctionCallSwitch` 装备回调，所以必须显式装备
+  - **不要纳入**：honey（双分支非单一强制，瓶子背包直耗）、locate（主手物品决定目标派生方式，盲装备会改变行为）
+  - **边界**：只注册 fishing/shears/extinguishing 三种单一硬需求；`CombinedInvWrapper` 位于 `net.minecraftforge.items.wrapper`，且 `IItemHandler` 本身没有 `setStackInSlot`
+
+### MSM 存储目标不能用 default_storage_blocks tag 代替
+  - **症状**：`storage_manage` 长期 `BLOCK_BUDGET_EXHAUSTED` / `FULL_SCAN_NO_STORAGE`，从未返回 `AVAILABLE`，但 MSM 自身能识别并使用仓库
+  - **根因**：真实 `PlaceMoveBehavior` 优先读取 `ViewedInventoryMemory.positionFlatten()`；`ItemHandlerStorage.isValidTarget` 只要求 BlockEntity 暴露 `ITEM_HANDLER`。`default_storage_blocks` tag 用于选择交互位置，不是仓库有效性条件
+  - **解法**：Detector 反射读取 `VIEWED_INVENTORY` 并优先检查已查看仓库；有效性移除 tag 限制；本地 fallback 垂直范围由 ±7 收窄为附属实际五层扫描
+
+### MSM 版本必须 ≥1.15.x，且 Storage 改名 Target 要双路径兼容
+  - **症状**：runClient 中女仆一切入 `storage_manage` 的 PLACE 行为即崩服：`ChatBubbleMgrMixin` 的 `@Shadow getEndTime` 在 TLM 1.5.3 的 `ChatBubbleManger`（已重写为弃用壳）中不存在
+  - **根因**：MSM 1.4.1 自身与 TLM 1.5.3 不兼容，与调用方 Detector 无关；MSM 1.15.3 明确适配 TLM 新 AI 系统，1.15.x 的 mixins.json 已删除该条目
+  - **解法**：`build.gradle` 升级到 `curse.maven:maid-storage-manager-1210244:7976861`（1.15.6）；Detector 反射 `storage.Storage#getPos` 改为先试旧类、缺失则用 `storage.Target#getPos`（字段方法签名相同）
+  - **注意**：MSK 的 cook/berry 反射类不受 MSM 升级影响（MSM 不内嵌 MSK）；升级后 storage_manage 保持可调度，仍需实机验证 PLACE/RESORT 路径
+
+### 灭火只灭生物身上的火，不处理地面火焰
+  - TLM `MaidExtinguishingTask.start` 三分支：着火主人（2 格内直接灭，否则走近）→ 女仆自身 → AABB 膨胀 (2,1,2) 内着火驯服动物；地面火焰与着火敌对生物从不在语义内
+  - Detector 与之一致：地面点火测试报 `NO_FIRE_TARGET` 是正确行为，不是检测失效；文档已在兼容矩阵注明该边界
+
+### 农耕可达性必须对齐 MaidPathFindingBFS，且区分单点 / 包围盒
+  - **症状**：成熟浆果、可可、水果存在，但 Detector 持续返回 `FULL_SCAN_ALL_UNREACHABLE`，实机日志无 `AVAILABLE`
+  - **根因**：
+    1. `EntityMaid.canPathReach` 的 A* 要求目标格本身是寻路节点，而浆果丛（`SWEET_BERRY_BUSH → DAMAGE_OTHER`）、可可（`COCOA`）、树叶（`LEAVES`）的 malus 都是 -1，永远不会成为节点 → 单点检查恒 false。
+    2. TLM/MSK 的真实 AI 用的是 `MaidPathFindingBFS`，而且不同任务语义不同：`MaidFarmMoveTask`（`IFarmTask` 默认脑）只查基准点单点；`MaidFarmSurroundingMoveTask`（TLM 的 `cocoa`、`melon`）查基准点周围 `(-1,0,-1)..(1,1,1)` 的 3×2×3 任一格；MSK `MaidCompatFruitMoveTask` 查的是 `crop.below(searchYOffset)` 这个**基准点**单点，范围/主人距离也判在基准点。
+  - **解法**：统一用 `FarmReach.canReach(map, pos, surrounding)`；每次 Detector 扫描复用一个 `MaidPathFindingBFS` 并在 finally 里 `finish()`；路径预算只在命中成熟候选后消费。
+  - **坑**：`TaskScanCursor` 一旦绕过中心就会在旧中心扫描；home 模式必须把中心纳入 `matches`（跟随模式中心随女仆移动，不能纳入，否则每 tick 重扫）。
+  - **坑**：路径预算耗尽时不要把游标推进到 `nextCursor`，否则该候选整轮被永久跳过；应保持原游标下个 tick 重试。
+
+### `@Mod` 与 `@LittleMaidExtension` 必须拆成两个类
+  - TLM 1.5.3 会在 `FMLCommonSetupEvent` 中扫描 `@LittleMaidExtension`，并通过反射再次创建扩展实例；同一个类同时标注 `@Mod` 会导致 Forge 事件监听器、命令和生命周期处理重复注册/执行
+  - `SincerelyMod` 只负责 Forge common 配置、mod/Forge event bus、Menu、network 与 server lifecycle
+  - `SincerelyExtension` 只负责 `ILittleMaid` 的 Tool、Context、TaskData 等扩展注册
+  - client-only 配置界面注册必须放在 `DistExecutor` / `Dist.CLIENT` 分支，公共 `@Mod` 构造路径不能直接解析 Cloth Config GUI 类
+
+### 异步 LLM 维护不能用 ThreadLocal 充当完整请求身份
+  - `ThreadLocal` 只能标记同步创建 callback 的瞬间；TLM 的 LLM、Tool 与 history summary 都会跨异步边界
+  - TLM 1.5.3 的 `LLMCallback` 在构造时持有同一 `messages` 列表，工具续链复用该对象；可用 callback identity + messages identity 标记整个请求链
+  - `HistorySummaryCallback` 与 `AutoGenSettingCallback` 覆写 `onSuccess`/`onFailure`，Mixin 到基类终态方法不会自动覆盖子类覆写；必须分别核实并接线
+  - 普通聊天在 history summary 阶段尚未创建最终 callback，因此还要在 `MaidAIChatManager.chat` 的 HEAD/RETURN 跟踪 pending submission，避免维护与摘要后恢复的普通聊天并发
+  - 维护超时必须终止当前代次并清除 snapshot/chain；旧 callback 迟到时只能识别为过期请求，不能清理或修改新一轮维护状态
+
+### 维护历史清理必须按消息对象身份，不按长度截断
+  - 仅保存 `history.size()` 并删除尾部/头部 N 条会误删维护期间完成的普通对话，也可能残留超时后到达的维护回复
+  - 启动维护时保存原 `LLMMessage` 对象的 identity set，结束时只删除不在原集合中的消息
+  - snapshot 必须与维护代次绑定或在 timeout 时完整废弃，不能让旧 callback 使用同 UUID 的新 snapshot
+
+### 记忆保存采用“副本修改、落盘成功再提交缓存”
+  - `load()` 返回缓存对象副本，调用方不能直接污染共享 cache
+  - 保存时按 maid UUID 串行，先把 candidate 写入同目录随机临时文件，再 `ATOMIC_MOVE + REPLACE_EXISTING`；仅成功后替换 cache
+  - 保存失败必须保留旧 cache 与旧目标文件，并在 finally best-effort 删除临时文件
+  - 损坏/非对象 JSON 要隔离为 `.corrupted.<timestamp>`，不能静默返回空对象后覆盖原文件
+  - `ConcurrentHashMap<UUID, MaidMemory>` 只保护映射，不保护 `MaidMemory` 内部 `LinkedHashMap`；不能把共享可变对象直接暴露给异步 Tool
+
+### 自动任务换装与 `setTask` 必须是同一事务
+  - 工具交换应快照“完整主手 + 完整目标槽”，整槽提取后交换；不能提取 1 个再覆盖目标槽剩余堆叠
+  - `maid.setTask(targetTask)` 抛异常时必须恢复原主手与原槽，否则会出现“任务未切换但工具已变更”
+  - 装备阶段内部异常和后续 `setTask` 异常都要走同一个 rollback contract
+
+### 检测缓存中的 UNKNOWN 不能重置或创建 UNAVAILABLE 计时
+  - `UNAVAILABLE` 开始/延续 busy guard 的不可用计时
+  - `AVAILABLE` 明确清除计时
+  - `UNKNOWN/EXPIRED` 只能保留同任务已有计时，不能自行创建计时，也不能把短暂缓存过期解释成任务恢复可用
+
+### 命令执行的名单判定必须沿 `getChild()` 递归（1.5.3 基线核实）
+- **构造**：原版 `ExecuteCommand` 用 `literal("run").redirect(dispatcher.getRoot())` 注册 run；实体/条件分支用 `fork` / `redirect`（`redirect` 与 `fork` 都会在节点上设置 redirect）
+- **Brigadier 1.1.8 行为**（`CommandDispatcher.parseNodes`）：子节点带 redirect 时，会新建一个以 redirect 目标为根的 `CommandContextBuilder` 并 `context.withChild(...)`，然后**立即返回外层 context**；因此 `ParseResults#getContext()` 只暴露最外层节点（如 `[execute]`），`run` 之后的命令节点全部在 child 链上
+- **结论**：判定必须 `getChild()` 递归收集 LiteralCommandNode 名字，否则 `/execute run kill @e` 只能看到 `execute`
+- **验证方式**（无需启动游戏）：把编译产物 + brigadier-1.1.8.jar + forge recomp jar 加入 classpath，用反射调用 `CommandClassifier.collectContextNames` 与 `scanTextNames`，对样例集断言：
+  - 树判定：`execute run kill @e → [execute, run, kill]`；`execute as Steve run tlmchat hi → [execute, as, run, tlmchat]`；`execute as Steve run execute run kill @e → [execute, as, run, kill]`；`give @s diamond 1 → [give]`
+  - 文本判定：`minecraft:kill ... → kill`；`execute in minecraft:the_nether run fill ... → fill`；`tlmconfirm run <uuid> → tlmconfirm`
+  - 注意探针里实体选择器参数要用 `word()` 能解析的写法（`@a` 含 `@` 会被 Brigadier 的 unquoted string 拒绝），否则是探针失真而非代码问题
+- **文本兜底不可省**：命名空间写法、解析失败、模组命令别名都要靠原文扫描兜住
+
+### 两个 chat HEAD 注入的顺序与 `ci.isCancelled()` 语义
+- 同一方法同一注入点的多个 `@Inject` 处理器**共用一个 `CallbackInfo` 实例**；`CallbackInfo#isCancelled()` 是 Mixin 0.8.5 的公开方法（已 javap 核实）
+- 处理器执行顺序由 mixin 应用顺序（配置顺序/priority）决定，不是稳定契约；本项目的 `ChatMaintenanceGuardMixin`（维护忙线）**不检查** `isCancelled()`，因此 `CommandConfirmationChatGuardMixin`（命令确认忙线）采取双保险：
+  1. 自身 `ci.isCancelled()` 先返回，避免与已取消方重复发言
+  2. 维护忙线激活时（`isMaintaining && !isInternalMaintenanceCall`）直接返回，把提示让给维护 Guard，从而**与注入顺序无关**
+- 新增注入排在 `ChatMaintenanceGuardMixin` 之后（mixins.json 顺序）作为额外的顺序约定
+- 内部维护调用（`MemoryMaintenanceManager.isInternalMaintenanceCall()`）不拦截，避免打断后台整理
+
+### 命令确认挂起的生命周期与 future 完成
+- `CommandConfirmationService` 的 pending 表、会话信任、tick 扫描全部只在服务端线程访问；`LLMCallback.addToolResult` 有主线程断言，因此**所有完成路径都必须在服务端线程**：`/tlmconfirm` 命令、tick 扫描、登出事件、停服事件
+- 完成顺序固定为：先 `callback.addToolResult(text, toolCallId)`，再 `future.complete(callback)`；future 完成会触发 TLM 的 `handleAsync(..., serverExecutor)`，在服务端线程续跑工具批
+- 离开 pending 状态的每条路径都要完成 future：确认、取消、信任、超时、主人登出、女仆死亡/移除（按实体引用判 `isAlive()/isRemoved()`，不用区块查询以免把"未加载"误判为"已移除"）、服务器停止
+- `/tlmconfirm` 先移除 pending 再执行，保证 token 一次性、重复点击幂等；token 用 UUID，从不进入模型可见文本，且 `tlmconfirm` 本身在黑名单中
+
+### 审计日志轮转
+- 路径用 `FMLPaths.GAMEDIR` 拼 `logs/tlm_sincerely/command_audit.log`（`FMLPaths` 没有 LOGSDIR）
+- 每次 append 后 `Files.size` 超限就 `Files.move(..., REPLACE_EXISTING)` 到 `command_audit.log.1`；Windows 上可行是因为写入是独立的一次 open/close，没有常开句柄
+- 写盘失败只 WARN，绝不打断命令流程；命令文本按 `\`、`"`、换行/制表符转义，且命令本身已经拒绝换行
+
+### future 完成会内联续跑 TLM 工具批次（再入陷阱）
+- `LLMCallback` 用 `handleAsync(..., serverExecutor)` 消费工具的 future；在服务端线程上 `future.complete()` 时 `BlockableEventLoop` 的 `runningTask()` 为假（ServerTickEvent 直接派发，不在 `doRunTask` 内）→ 续跑**同步内联**执行
+- 后果：在"迭代 pending 表并逐个 complete"的循环里，同一批次的下一条 `run_command` 可能插入新的 pending → `ConcurrentModificationException`；在 tick 路径会冒泡成崩溃报告
+- 规避：所有 pending 遍历一律**先快照、先移除、再完成**（见 `CommandConfirmationService.onServerTick/onOwnerLoggedOut/cancelAll`）
+- 相关：`complete()` 若 `addToolResult` 抛异常应 `completeExceptionally`，让 TLM 的 `onToolErrorCall` 兜底生成错误 tool result，而不是让 future 永久挂起
+
+### 命令确认的衍生产出
+- 确认消息、气泡、回执一律经 `MaidCommandExecutor.sanitizeForDisplay` 剥离 `§` 与控制字符：模型生成的命令文本可能含格式码，直接进聊天组件会造成视觉伪装
+- 挂起时女仆气泡含命令原文（计划要求），该气泡随实体数据同步给能看见女仆的玩家；确认消息本身仍只发主人
+- 文本扫描会剥离任意 token 的 `namespace:` 前缀，属保守策略：资源 ID 恰为名单条目时会命中（宁可多确认/多拒绝）
+
+### TLM 数据包 Skill 命名空间必须为 touhou_little_maid
+- **现象**：在附属模组的 `data/<modid>/skills/...` 下放置 `skill.md`，TLM 启动后无法扫描到该 Skill。
+- **根因**：TLM 1.5.3 的 `SkillsDataReloadListener` 在重载资源时，硬编码过滤了 `resourceLocation.getNamespace().equals("touhou_little_maid")`。
+- **解决**：附属若要内置随 mod 数据包分发的 Skill，必须放置于 `data/touhou_little_maid/skills/<skill-name>/skill.md`。
+- **调用时机优化**：为防止大型参考 Skill 在初次对话中被模型盲目加载占用上下文，在 Skill 的 YAML `description` 中通过明确限制语（“仅在先前 run_command 失败报错或需构建复杂高阶 1.20.1 指令时调用”），可实现真正的报错自愈式惰性加载。
+
+### Memory harness 的并发、持久化与安全约束
+  - 同一 session 同时只能有一个 chat；后续请求返回 `409` 或显式排队，不能让两个 agent loop 共享 history/memory 并发运行
+  - record/replay transport 必须按 session 复用，文件名统一 `turn-N.json`；auto-gen 使用独立 transport，不能推进主聊天 cursor
+  - SSE 必须监听 response close 并向 agent/transport 传播 `AbortSignal`；客户端断开后不得继续消耗 token 或写入状态
+  - Memory CRUD 返回成功前必须真正 await 原子落盘，debounce 只能用于明确允许 best-effort 的路径
+  - config/scenario 缩小 `maxMemories` 时，若现有或待载入记忆超限必须拒绝并保持原状态
+  - 非回环监听必须要求 token；未知异常默认返回通用错误，完整路径、上游 body 与凭据只写服务端日志
+  - Node 原子写使用同目录随机临时文件 + rename replace；Windows 短暂锁定可重试，但不能先删除旧文件制造空窗
+
+### 自动工作：客户端预设库与绑定快照（2026-09-17）
+- **调度必须服务端跑 ≠ 预设必须全服共享**：调度只要求数据在服务端可见，因此"给女仆选预设"实现为一次性烤快照（`AutoWorkState.order`，NBT 标签 `bound`）。客户端库是私有文件，服务端只在绑定/首触时读取 id/name/order；避免"某玩家改库，别人女仆跟着变"的隐式共享。旧数据只有 presetId 时按冻结种子补烤。
+- **TLM `TaskAttack.isWeapon` 会把弓当近战武器，近战判定不能直接复用**：本模组近战 `attack` 的 `MELEE_WEAPON` 显式排除弓、弩、三叉戟、御币；弓兵（`ranged_attack`）要求弓+箭（`getAllSupportedProjectiles`），弩/戟/弹幕各自按 `isWeapon` 检查。武器注册进 `MaidHardToolService`，`setTask` 前换到主手。
+- **棋盘检测：`sitId == 自身` 要视为占用中的可用**：下棋时棋盘被自己占用，若把"被占用"一律判 `UNAVAILABLE`，女仆会被切走并在 `switchTo` 里 `stopRiding` 下车。`BuiltinBoardGamesDetector` 对自身 `sitId` 返回可用，其他占用者判不可用。
+- **`canBrainMoving()` 含 `isPassenger()`**：骑乘（椅子/棋盘/船）时它返回 false，不能拿它当"完全不能工作"的判据。需要"坐下/睡眠/拴绳不可工作但骑乘仍扫描"的语义时，先判断 `getVehicle() == null` 再查 `canBrainMoving()`（`BuiltinHoneyDetector` 即此写法）。
+- **线格式 encode 上限必须与 decode 上限一致**：解码端对超限（预设 64 条、每条 order 512）抛异常会直接断开连接；编码端要用同一常量做 `Math.min` 钳制、超量静默截断，不能只依赖本地数据的规范性。
+- **Jade 为 optional compileOnly**：只有 `AutoWorkJadePlugin` / `AutoWorkJadeProvider` 这类插件类可以引用 Jade API（由 `@WailaPlugin` 在 Jade 存在时加载），其他公共路径不得引入硬依赖，缺失时模组必须正常启动。
+- **配置页要即时重绑，不要引入"未应用"中间态**：`AutoWorkConfigScreen` 对该页女仆的增删改序/改名必须直接写本地库并重发 `SetMaidAutoWorkPresetC2SPacket`（`rebakeActivePreset()`），不要做"改动先挂起、点 `<`/`>` 才生效"的提示条——服务端不会自动同步，玩家会以为保存失败。库与绑定仍是两个概念：只有这只女仆的页面在改动时才重绑，其他女仆与推送入库都不受影响。
+- **攻击检测不要直接读 `findFirstValidAttackTarget(maid)`**：它读的是 `NEAREST_VISIBLE_LIVING_ENTITIES`/`NEAREST_LIVING_ENTITIES` 记忆，而那份记忆的扫描范围由女仆**当前**任务决定；同时 `maid.canAttack` 会把判定委托给当前任务。结果可能给出"切过去后 TLM 的 `StopAttackingIfTargetInvalid#farAway` 立刻丢弃"的假目标，表现为女仆切入攻击工作后原地发呆。正确做法是用 `IMaidTask.searchDimension/searchRadius` 建搜索盒，并按该任务自己的 `farAway` 语义比较距离（`TaskAttack`：跟随模式按主人到目标；`TaskBowAttack`：女仆到目标），再配合 `attackTask.canAttack` 与 `canSee`。
+- **Jade 开发环境会断言插件 UID 翻译**：`JadeClient.onGui` 对每个 `getUid()` 要求存在 `config.jade.plugin_<namespace>.<path>`（本模组即 `config.jade.plugin_tlm_sincerely.auto_work`）。缺 key 时 `AssertionError` 会在加载 overlay 阶段崩客户端（正式包通常不断言）。信息栏正文仍用 `jade.tlm_sincerely.auto_work.active`。
 
 ## 测试流程
 

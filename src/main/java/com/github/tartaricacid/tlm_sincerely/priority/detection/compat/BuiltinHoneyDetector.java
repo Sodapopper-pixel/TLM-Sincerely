@@ -44,7 +44,8 @@ public final class BuiltinHoneyDetector implements TaskWorkDetector {
         if (!task.isEnable(maid)) {
             return unavailable(context, task, "TASK_DISABLED");
         }
-        if (!maid.canBrainMoving()) {
+        // 骑乘（椅子/棋盘/船等）时仍参与扫描；只有坐下/睡眠/拴绳才跳过。
+        if (maid.getVehicle() == null && !maid.canBrainMoving()) {
             return unavailable(context, task, "MAID_NOT_MOVABLE");
         }
         boolean hasShears = maid.getMainHandItem().canPerformAction(ToolActions.SHEARS_HARVEST);
