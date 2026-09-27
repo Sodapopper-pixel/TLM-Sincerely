@@ -21,7 +21,7 @@ public enum AutoWorkJadeProvider implements IEntityComponentProvider {
     INSTANCE;
 
     private static final ResourceLocation UID =
-            new ResourceLocation(SincerelyExtension.MOD_ID, "auto_work");
+            ResourceLocation.fromNamespaceAndPath(SincerelyExtension.MOD_ID, "auto_work");
 
     @Override
     public ResourceLocation getUid() {

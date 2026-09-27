@@ -3,8 +3,6 @@ package com.github.tartaricacid.tlm_sincerely.client.network;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkSnapshot;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.RequestAutoWorkSnapshotC2SPacket;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 
 import java.util.List;
 import java.util.Optional;
@@ -25,7 +23,6 @@ import java.util.function.Consumer;
  * thread-safe via {@link CopyOnWriteArrayList} for the listener list;
  * the snapshot field is read-mostly and assigned atomically.
  */
-@OnlyIn(Dist.CLIENT)
 public final class ClientAutoWorkService {
     private static final ClientAutoWorkService INSTANCE = new ClientAutoWorkService();
 
@@ -75,8 +72,8 @@ public final class ClientAutoWorkService {
         if (connection == null) {
             return;
         }
-        com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkNetworking
-                .channel().sendToServer(new RequestAutoWorkSnapshotC2SPacket());
+        net.neoforged.neoforge.network.PacketDistributor
+                .sendToServer(new RequestAutoWorkSnapshotC2SPacket());
     }
 
     /** Registers a listener to be invoked whenever a new snapshot arrives. */

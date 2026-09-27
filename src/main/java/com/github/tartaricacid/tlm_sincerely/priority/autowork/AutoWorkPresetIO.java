@@ -7,7 +7,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.fml.loading.FMLPaths;
+import net.neoforged.fml.loading.FMLPaths;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -168,7 +168,7 @@ public final class AutoWorkPresetIO {
             for (int i = 0; i < arr.size(); i++) {
                 String raw = arr.get(i).getAsString();
                 try {
-                    ResourceLocation rid = new ResourceLocation(raw);
+                    ResourceLocation rid = ResourceLocation.parse(raw);
                     if (!order.contains(rid)) {
                         order.add(rid);
                     }

@@ -9,7 +9,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.items.IItemHandler;
+import net.neoforged.neoforge.items.IItemHandler;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,8 +25,8 @@ public final class FarmTaskWorkDetector implements TaskWorkDetector {
      * cannot be introspected, so they keep the default single-point semantics.
      */
     private static final Set<ResourceLocation> SURROUNDING_MOVE_TASKS = Set.of(
-            new ResourceLocation("touhou_little_maid", "cocoa"),
-            new ResourceLocation("touhou_little_maid", "melon"));
+            ResourceLocation.fromNamespaceAndPath("touhou_little_maid", "cocoa"),
+            ResourceLocation.fromNamespaceAndPath("touhou_little_maid", "melon"));
 
     @Override
     public boolean supports(IMaidTask task) {

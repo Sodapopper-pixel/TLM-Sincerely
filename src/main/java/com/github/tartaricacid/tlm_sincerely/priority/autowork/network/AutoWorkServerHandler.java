@@ -6,7 +6,6 @@ import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.A
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.AutoWorkSnapshotS2CPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.PacketDistributor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,9 +13,9 @@ import java.util.List;
 /**
  * Reusable helpers used by C2S packet handlers and server lifecycle hooks.
  *
- * <p>Centralises the {@code enqueueWork} → server-thread pattern, the
- * {@code sendSnapshot} call and the login seed copy. All methods assume they
- * are invoked from the server thread.
+ * <p>Centralises the server-thread send pattern, the {@code sendSnapshot}
+ * call and the login seed copy. All methods assume they are invoked from the
+ * server thread.
  */
 public final class AutoWorkServerHandler {
     private AutoWorkServerHandler() {
@@ -32,10 +31,7 @@ public final class AutoWorkServerHandler {
             return;
         }
         AutoWorkSnapshot snapshot = AutoWorkSnapshotBuilder.build(player.server, player);
-        AutoWorkNetworking.channel().send(
-                PacketDistributor.PLAYER.with(() -> player),
-                new AutoWorkSnapshotS2CPacket(snapshot)
-        );
+        AutoWorkNetworking.sendToPlayer(player, new AutoWorkSnapshotS2CPacket(snapshot));
     }
 
     /** Sends fresh maid/compat snapshots to every connected player. */
@@ -64,9 +60,7 @@ public final class AutoWorkServerHandler {
         for (AutoWorkPreset preset : presetService.listPresets()) {
             payload.add(AutoWorkPresetData.from(preset));
         }
-        AutoWorkNetworking.channel().send(
-                PacketDistributor.PLAYER.with(() -> player),
-                new AutoWorkSeedS2CPacket(presetService.getDefaultPresetId(), payload)
-        );
+        AutoWorkNetworking.sendToPlayer(player,
+                new AutoWorkSeedS2CPacket(presetService.getDefaultPresetId(), payload));
     }
 }

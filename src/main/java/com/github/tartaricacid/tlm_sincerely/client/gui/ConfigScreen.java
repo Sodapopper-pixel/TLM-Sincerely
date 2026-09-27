@@ -9,8 +9,6 @@ import me.shedaniel.clothconfig2.api.ConfigCategory;
 import me.shedaniel.clothconfig2.api.ConfigEntryBuilder;
 import me.shedaniel.clothconfig2.impl.builders.SubCategoryBuilder;
 import net.minecraft.network.chat.Component;
-import net.minecraftforge.client.ConfigScreenHandler;
-import net.minecraftforge.fml.ModLoadingContext;
 
 import java.util.ArrayList;
 
@@ -402,12 +400,5 @@ public final class ConfigScreen {
                 .build());
 
         addon.addEntry(maidCommand.build());
-    }
-
-    public static void register() {
-        ModLoadingContext.get().registerExtensionPoint(
-                ConfigScreenHandler.ConfigScreenFactory.class,
-                () -> new ConfigScreenHandler.ConfigScreenFactory(
-                        (client, parent) -> create().setParentScreen(parent).build()));
     }
 }

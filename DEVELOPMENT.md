@@ -26,27 +26,32 @@ src/main/java/com/github/tartaricacid/tlm_sincerely/
     ├── autowork/                  # 自动工作模式：状态/预设/网络/菜单/检测/决策
     └── detection/                 # 通用任务检测（农耕/甘蔗/攻击）
 src/main/resources/
-├── META-INF/mods.toml           # 模组元数据
 ├── assets/tlm_sincerely/lang/   # 国际化文件
-├── pack.mcmeta                  # 资源包元数据
+├── pack.mcmeta                  # 资源包元数据（pack_format 34）
 └── tlm_sincerely.mixins.json   # Mixin 配置
+src/main/templates/
+└── META-INF/neoforge.mods.toml  # 模组元数据（Gradle 展开后写入构建产物）
 ```
 
 ---
 
 ## 构建命令
 
-**环境要求**：Java 17（系统默认 Java 25 会报错）
+**环境要求（`1.21.1` 分支）**：Java 21。本机无独立 JDK 21 安装，使用 Gradle 工具链已下载的 Temurin 21.0.11：
+
+`C:\Users\21621\.gradle\jdks\eclipse_adoptium-21-amd64-windows.2`
+
+`main`（1.20.1 Forge）仍用 Java 17：`C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot`
 
 ```powershell
-# 设置 Java 17 环境
-$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
+# 设置 Java 21 环境（1.21.1 分支）
+$env:JAVA_HOME = "C:\Users\21621\.gradle\jdks\eclipse_adoptium-21-amd64-windows.2"
 
 # 构建
 .\gradlew.bat build --no-daemon
 
 # 输出位置
-build/libs/tlm_sincerely-1.20.1-forge-0.2.0-beta.jar
+build/libs/tlm_sincerely-1.21.1-neoforge-0.2.0-beta.jar
 ```
 
 ---
@@ -54,14 +59,14 @@ build/libs/tlm_sincerely-1.20.1-forge-0.2.0-beta.jar
 ## 测试命令
 
 ```powershell
-# 启动测试客户端（首次较慢，需下载资源）
-$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
+# 启动测试客户端（首次较慢，需下载资源；需用户明确授权）
+$env:JAVA_HOME = "C:\Users\21621\.gradle\jdks\eclipse_adoptium-21-amd64-windows.2"
 .\gradlew.bat runClient --no-daemon
 
 # 或双击项目根目录 runClient.bat
 ```
 
-`copyModsToLocalRun` 仅为历史兼容空任务，不再复制任何模组。开发依赖统一通过 `runtimeOnly fg.deobf(...)` 加载。
+P0 开发依赖为 TLM + Cloth Config。可选附属（Jade 等）待阶段 4 按 1.21.1 NeoForge 发布物逐个补回。
 
 ---
 
@@ -87,14 +92,15 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
 **主模组源码查询**（本机不保留源码副本，按需查询，从最优到兜底）：
 
 1. **依赖 jar 反编译（首选，最贴近实际编译产物）**：`compileJava` 后主模组 jar 已在 Gradle 缓存：
-   `~/.gradle/caches/modules-2/files-2.1/maven.modrinth/touhou-little-maid/1.5.3-forge+mc1.20.1/.../touhou-little-maid-1.5.3-forge+mc1.20.1.jar`
+   `~/.gradle/caches/modules-2/files-2.1/maven.modrinth/touhou-little-maid/1.5.3-neoforge+mc1.21.1/.../touhou-little-maid-1.5.3-neoforge+mc1.21.1.jar`
+   Modrinth 实际文件名是 `touhoulittlemaid-1.5.3-neoforge+mc1.21.1.jar`（无连字符）。本地查阅副本也可放在工作区 `.tmp-mdk/jars/`（已 gitignore）。
    IDE（IntelliJ 内置反编译器）搜索类名可直接阅读；需要字节码级证据（常量、方法体）时用：
    `javap -p -c -constants -classpath <jar> <全限定类名>`
-   这是唯一能精确对应 1.5.3 release 的途径（GitHub `1.20` 分支是快照开发线，可能领先/滞后于正式版）。
+   这是唯一能精确对应 1.5.3 NeoForge release 的途径（GitHub `1.21` 分支是快照开发线，可能领先/滞后于正式版）。
 2. **浅克隆官方仓库（需要跨文件浏览、git 历史时）**：
-   `git clone --depth 1 --branch 1.20 https://github.com/TartaricAcid/TouhouLittleMaid.git`
-   对应版本为 `1.5.3-forge`；如需更新 `git -C <目录> pull`。clone 后可用 rg/IDE 全文检索。
-3. **GitHub 网页端**（仅看单个文件、不想 clone 时）：`https://github.com/TartaricAcid/TouhouLittleMaid/tree/1.20/src/main/java/...` 或按路径直达文件。
+   `git clone --depth 1 --branch 1.21 https://github.com/TartaricAcid/TouhouLittleMaid.git`
+   对应版本为 `1.5.3-neoforge`；如需更新 `git -C <目录> pull`。clone 后可用 rg/IDE 全文检索。
+3. **GitHub 网页端**（仅看单个文件、不想 clone 时）：`https://github.com/TartaricAcid/TouhouLittleMaid/tree/1.21/src/main/java/...` 或按路径直达文件。
 4. **运行目录兜底**：`run/mods/` 中的生产 jar 或开发环境 `run/` 下的 mods，无 Maven 缓存时可用反编译工具打开。
 
 > 注意：GitHub 上该仓库只有 snapshot 预发布 tag，正式版（release）发布在 Modrinth。查询与当前依赖版本严格对应的实现时，一律以第 1 条（依赖 jar）为准；GitHub 源码仅用于理解结构与实现意图。
@@ -111,12 +117,7 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.19.10-hotspot"
 删除 `run/` 会丢失第三方 mod 的缓存配置（Embeddium、Configured 等），导致启动异常。
 
 ### 2. 修改 build.gradle 时区分"专属配置"和"共享基础设施"
-以下两项是 **Mixin 框架全局 JVM 参数**，与是否使用自己的 Mixin 无关，不能删除：
-```groovy
-property 'mixin.env.remapRefMap', 'true'
-property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
-```
-所有使用 Mixin 的第三方 mod（Embeddium、Create、Sophisticated Backpacks 等）都依赖它们做方法名重映射。
+`1.21.1` 分支已从 ForgeGradle 6 迁到 ModDevGradle。旧的 `mixin.env.remapRefMap` / `createSrgToMcp/output.srg` 是 1.20.1 Forge 专用，**不要**再写回 `build.gradle`。Mixin 由 `neoforge.mods.toml` 的 `[[mixins]]` + `tlm_sincerely.mixins.json` 声明。
 
 ### 3. 修改 build.gradle 后用 `git diff` 核对改动
 每次修改完 `build.gradle`，检查 diff 确保没有误删共享依赖或配置项。
@@ -480,3 +481,71 @@ cat run\logs\latest.log
 # 5. 清理特定配置（如需）
 Remove-Item run\config\tlm_sincerely* -Force
 ```
+
+---
+
+## 1.21.1 NeoForge 迁移踩坑（2026-09-19）
+
+### ModDevGradle（MDG 2.0.147）
+- `neoForge { version }` 依赖只接入 main 源集；测试需要 MC 类必须启用 `neoForge.unitTest { enable(); testedMod = mods.getByName(mod_id) }`
+- `unitTest` 会把 `net.neoforged.fancymodloader:junit-fml` 带进测试运行时，其 `LauncherSessionListener` 需要完整 FML 启动环境，纯单测会报 `Could not start Gradle Test Executor`。解决：`configurations.testRuntimeClasspath { exclude group: 'net.neoforged.fancymodloader', module: 'junit-fml' }`
+- Modrinth maven 对部分模组只发 POM（如 TLM、cloth-config 旧坐标），`dependencies` 能解析但编译拿不到类。TLM 实际文件名 `touhoulittlemaid-*.jar`（无连字符）；Cloth 用官方 `maven.shedaniel.me` 坐标 `me.shedaniel.cloth:cloth-config-neoforge`
+- NeoForge `ModConfig` 在 `net.neoforged.fml.config`（FML loader jar），不是 `net.neoforged.neoforge.fml.config`
+
+### NeoForge 21.1.219 API 实测
+- `ClientPacketDistributor`、`RegisterClientPayloadHandlersEvent`、`ByteBufCodecs.UUID_STREAM_CODEC` 都不存在（21.4+/1.21.2+ 才有）。S2C：`playToClient(TYPE, CODEC, handle)`（三参是唯一重载）+ handler 内 `context.flow().isClientbound()` 防御转发到 client 类；客户端发送 `PacketDistributor.sendToServer(payload)`
+- `@EventBusSubscriber.bus()` 已弃用待删：按事件类型自动分总线，注解里别再写 `bus =`
+- `ItemStack.getAttributeModifiers(EquipmentSlot)` 移除 → `forEachModifier(slot, BiConsumer)`（含附魔与组件属性，语义为旧查询超集）
+- `ForgeCapabilities` → `net.neoforged.neoforge.capabilities.Capabilities`（`ItemHandler.BLOCK/ENTITY`，BlockEntity 走 5 参 `getCapability`，返回值判 null）
+- `ToolActions` → `ItemAbilities`；`IForgeShearable` → `IShearable`（`isShearable` 多 Player 首参，TLM 传 null）；`ForgeHooks.getBurnTime` → `stack.getBurnTime(RecipeType)`（data map）
+- `BlockBehaviour.canSurvive` 是 protected 且**不能 AT**：放宽基类会让几十个 vanilla 子类的 protected 覆写把 MC 重编译打爆。公开等价物：站立火把 = `Block.canSupportCenter(level, pos.below(), Direction.UP)`
+- `Component.Serializer` 移除 → `ComponentSerialization.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString(s)).getOrThrow()`
+- `performPrefixedCommand` 返回 void（1.20.1 返回 int），要结果得自己 parse/execute
+- `ModConfigSpec` 无 `setConfig(CommentedConfig)`；`ILoadedConfig` 是密封接口、`LoadedConfig` 包私有、空配置 `correct()` 会 NPE。单测加载配置只能反射注入 `loadedConfig` 私有字段（见 `MemoryPersistenceTest#loadSpecInMemory`）
+- MSK（Maidsoul Kitchen）1.21.1-beta-0.1.4：API 迁至 `api.task.v1.farm.ICompatFarm`，`BerryFruitData` 拆为 `FarmData/FruitData`，`BLACK_LIST` 在 `IAddonMaid`；聚合任务 `maidsoulkitchen:cook` 不再注册 → CookDetector 休眠
+
+### TLM 1.21 附属兼容
+- 11 个 Mixin 目标（MaidAIChatManager/ChatBubbleManager/LLMCallback/MaidTabs/AbstractMaidContainerGui 等）签名零漂移；`MaidTabs` 泛型化不影响按名匹配
+- NeoForge 运行时即 Mojang 名：`mixins.json` 不要再写 `refmap`，MC 方法注入点直接写 Mojang 名即可
+- TLM 事件（AddClothConfigEvent / MaidContainerGuiEvent / MaidAndItemTransformEvent）全部 post 在 GAME 总线
+
+### 模组元数据字符集（实机启动崩溃，2026-09-19）
+- 症状：FML 扫描阶段 `File build\classes\java\main is not a valid mod file` + `MalformedInputException: Input length = 2`，随后全部事件 `Cowardly refusing to send event ... to a broken mod state`
+- 根因：`generateModMetadata`（ProcessResources）未设 `filteringCharset`，在 GBK 启动环境下把模板里的中文 description 以 GBK 展开，FML 固定按 UTF-8 读 `neoforge.mods.toml` 直接解析失败
+- 教训：**任何 `expand`/`filter` 类 ProcessResources 任务（含自定义的 generateModMetadata）必须显式 `filteringCharset = 'UTF-8'`**；jar 内是好的而 run 目录是坏的时，先 diff 两侧编码
+
+### 自定义 ArgumentType 在 1.21.1 的注册（实机进存档崩溃，2026-09-19）
+- 症状：进存档 2 秒内断连 `DecoderException: Failed to decode packet 'clientbound/minecraft:commands'`，底层 `IndexOutOfBoundsException`（命令树包被截断）
+- 根因：1.21.1 命令树包按 `BuiltInRegistries.COMMAND_ARGUMENT_TYPE` 的 registry **id** 编解码（写入侧 `ClientboundCommandsPacket` 写 `getId(info)`，读取侧 `byId(id)` 反查）。`ArgumentTypeInfos.registerByClass` **只填 BY_CLASS 静态 map**（vanilla javadoc 明说要配合 DeferredRegister），不注册 registry → 序列化写出 id=-1 → 客户端反查 null → 字节流错位
+- 正解：`DeferredRegister.create(BuiltInRegistries.COMMAND_ARGUMENT_TYPE, MOD_ID)` 注册 `ArgumentTypeInfo`，supplier 里同时调 `ArgumentTypeInfos.registerByClass` 回填 BY_CLASS，构造器里 `register(modEventBus)`（见 `SincerelyMod.COMMAND_ARGUMENT_TYPES`）
+- 连带教训：`NeoForge.EVENT_BUS.register(this)` 整类注册时，带 `@SubscribeEvent` 的方法参数必须是 GAME 事件；mod 总线事件（如 `FMLCommonSetupEvent`）用 `modEventBus.addListener` 且**不能**再挂 `@SubscribeEvent`，否则 `IllegalArgumentException: IModBusEvent events are not allowed on the common NeoForge bus`
+- `@EventBusSubscriber` 注解类无需关心总线归属：NeoForge 会自动按事件类型拆分注册（`Found mix of game bus and mod bus listeners ... registering them separately`）
+
+### 1.21.1 开发运行时生态（run/mods，2026-09-19 装配，同日按用户口径收紧）
+- `run/mods/` 最终保留 **33 个** jar（初装 63 个后按口径裁剪）。口径 = ① 1.20.1 runtimeOnly 原有集的 1.21.1 等价物 ② 用户点名新模组 ③ 两者的必须前置；多装的都是从"已验证全绿"集合里移除，无新增失败面
+- 保留集：JEI / Jade / Curios / 农夫乐事 / 精妙背包+核心 / Sodium / Iris / Chloride / Reese / EntityCulling / YSM / Iron法术(+irons_lib、geckolib、playeranimator) / 万法皆通 / 真正的力量·附属(+slashblade、sbr_core) / 女仆厨房 / 森罗物语厨房 / MSM / MUT / Patchouli / Create / Configured / Searchables / Controlling / MouseTweaks / visual_keybinder / ModernUI / IMBlocker
+- 初次装配曾误装全量 63 个，已裁剪；穷举核查保留集 toml 的 required 依赖全部落位（Create 的 flywheel/ponder 为 JIJ 内嵌），kiwi / atlas_api / moonlight / puzzleslib / zeta 对保留集零引用，随之移出
+- 移出的 29 个在 `run/mods-extra-backup/`（未删除，需要时拿回）。**`truepower`（独立版真正的力量）已拿回**：它虽不在 `true_power_of_maid` 的 toml 依赖里，但附属代码在实体生成事件里裸引用 `net.mrqx.truepower.entity.EntityBlastSummonedSword`，缺它必崩（进存档时 `NoClassDefFoundError`，服务器 tick 崩溃）——toml 声明"互不依赖"≠运行时无硬引用，教训：排查附属关系不能只看 toml，要看字节码
+- 源目录 `D:\Minecraft\.minecraft\versions\1.21.1-NeoForge_21.1.90\mods` 保持只读
+- **YSM 在 dev 环境报 `err: 54`（"当前运行环境不满足"）是其自带 native 库的环境检查不通过**（启动期 `Failed to load native lib`），YSM 侧的 dev 限制，无法从我方修复；不阻塞启动，但 YSM 功能在 dev 里可能不可用。它只影响玩家自己的模型渲染，与本项目测试无关，嫌烦可从 run/mods 移除
+- **绝不能复制进 run/mods 的**：`touhou_little_maid`、`cloth_config`（Gradle classpath 已提供，重复 modId 直接崩）；`.disabled` jar 与 `.connector` 目录跳过
+- `neo_version` 已从 21.1.219 升至 **21.1.248**（与实体机同款）：jei/quark/slashblade/truepower 家族要求 ≥21.1.228~238，219 会被 FML 启动校验拦截。TLM 的 219 只是它的 dev 基线，其运行时 range 是 [21,)
+- 依赖闭包结论：万法皆通=touhou_little_maid_spell（required: TLM；optional: irons_spellbooks/curios）；真正的力量=true_power_of_maid（required: slashblade+sbr_core+TLM）；ars_nouveau 为 optional 未装
+- 森罗厨房对应两个不同模组：`maidsoulkitchen`（女仆厨房，检测器目标）与 `kaleidoscope_cookery`（森罗物语：厨房），都在 run/mods
+- 更新这些 jar 时：只从实体机实例目录同步，保持"源目录只读、run/mods 是副本"的纪律
+
+### 旧存档 1.20.1→1.21.1 NBT 离线修复（run/saves/新的世界，2026-09-19）
+- 格式差异根因：1.20.1 `NbtUtils.writeBlockPos` 写 Compound `{X:int,Y:int,Z:int}`，1.21.1 `NbtUtils.readBlockPos(CompoundTag,key)` 只认长度 3 的 IntArray `[X,Y,Z]`；TLM 受影响字段：maid 实体 `MaidRestrictCenter`、`MaidSchedulePos.{Work,Idle,Sleep}`（另含 `Dimension` 键），五子棋 BE `TileEntityJoy.{ForgeData→NeoForgeData}.SitId`（缺失补 NIL_UUID=`IntArray[0,0,0,0]`）
+- 实测结论：该存档 entities MCA 中 **maid 实体已被此前 1.21.1 会话清除**（解析失败被丢弃，未引用扇区也无残留），女仆数据幸存于 `data/maid_backups/<owner>/<maid_uuid>/*.dat`（23 个备份，全 DataVersion=3465）；全存档无 `touhou_little_maid:gomoku` BE，唯一 chair 实体（坐垫）无乘客。故 MCA 层面 0 处需修，maid_backups 共 69 处（23 文件×3 键）Compound→IntArray 已修，工具在 `tools/save_nbt_fix/`（scan/fix/verify，依赖 pip 装 `nbtlib==2.0.4`）
+- 存档 DataVersion 是混合态（3465 主体 + 3955 的 150 region/24 entities/4 poi chunk）：1.21.1 会话成功保存过部分区块。若将来要把 maid 从备份重新注入 entities MCA，必须放回 DV=3465 的同位置 chunk 让游戏走升级管道；`touhou_little_maid_world_data.dat` 的 `MaidInfos`（1.21.1 格式）已记录 2 个女仆的失踪 BlockPos
+- nbtlib 2.0 API 坑：`File.parse(io.BytesIO)` 返回的 File 本身就是根 Compound（根内字段是它的 items），`File.write(buf)` 会保留原根名（真实 chunk roundtrip 字节级一致）；构造时所有节点必须用 `nbtlib.tag.*` 类型，裸 dict 写出会 `AttributeError: 'dict' object has no attribute 'tag_id'`
+- MCA 重写要点：location 表 1024×(3 字节扇区 offset + 1 字节扇区数)，chunk = 4 字节长度(含 1 字节压缩类型) + 数据，整体按 4096 对齐；timestamp 表原样保留。整文件重建比原地写可靠；只读扫描时注意 <8KB 的文件要跳过 header
+
+### 整合包"配置加载失败→全客户端 broken state"崩溃链诊断（2026-09-25，外部整合包《你好，新蒸程》V1.5.9，已结案修复）
+- 表象：进整合包后一点鼠标就崩 `NullPointerException: KeyMapping.isDown() because "this.keybind" is null @ Quark AutoWalkKeybindModule`，极易被误判为"与 Quark 不兼容"
+- 真实因果链：latest.log 中 `FATAL [ModLoader/LOADING]: Failed to wait for future Config loading, 1 errors found`（且是全日志第一条错误）→ FML 进入 broken mod state → 之后 30 条 `Cowardly refusing to send event ...`（RegisterKeyMappingsEvent/RegisterMenuScreensEvent/EntityRenderersEvent 等全部被跳过）→ Quark 的 AutoWalk 按键从未注册 → 首次鼠标点击 NPE。崩溃报告里所有 NPE/事件异常都是次生伤害
+- 根因（复现台实锤）：`MemoryConfig.PREVIEW_MODE = defineInList("PreviewMode", "full", List.of("full","keys_only"))` —— **NeoForge `ModConfigSpec.correct()` 对配置中缺失的键以 `null` 调用校验器**（`configMap.get(key)` 为 null 时仍走 `valueSpec.test(configValue)`），而 JDK 不可变集合 `List.of(...).contains(null)` 直接抛 NPE。整合包里我们的配置文件是首次创建 → FML 4.0.42 `loadConfig` 的 NoSuchFile 分支 → `createDefaultConfig(spec)` → `spec.correct(空配置)` → NPE；该 NPE 是 RuntimeException，**不被 `catch (IOException | ParsingException)` 捕获、原始穿透、全程零日志**，只被 FML 计为 "1 errors found"。每次启动重试创建都必炸 → 装我们 mod 2/2 必崩、不装 2/2 正常
+- 定位过程（A/B 对比 + debug.log + 反汇编 + 1:1 复现台）：① 关掉我们 mod 能进 → A/B 锁定嫌疑；② 实例 `logs/debug-N.log.gz`（DEBUG 级，含 `Loaded TOML config file <路径>` 逐文件加载行），`Failed to wait for future Config loading` 前**最后一个 Loaded 的下一个注册项**即失败者——FML 4.0.42 的 track 顺序（`Config file X for Y tracking` 行）与加载顺序一致，失败者为 track 序 110 位 = `tlm_sincerely-common.toml`（109 位 cluttered-common 之后 1ms 即 FATAL）；③ Maven 拉 `fancymodloader loader-4.0.42.jar` + NeoForge 21.1.233 universal jar + night-config 3.8.3，javap 反汇编确认 `setupConfigFile→createDefaultConfig→spec::correct` 静默穿透路径；④ 本地 1:1 复现台（同版本三件套 + 中文路径 + `-Dfile.encoding=COMPAT`）稳定复现 NPE，且换 `new ArrayList<>(List.of(...))` 后成功产出完整默认配置（6864 字节）
+- **修复**：`defineInList` 的 allowedValues 用 `new ArrayList<>(List.of(...))`（可变 List 的 `contains(null)` 返回 false → 走正常纠正到默认值）。已验证：修复版在 21.1.219/233/248 + FML 4.0.42 全绿
+- 为何 dev 环境从未踩中：`run/config/tlm_sincerely-common.toml` 最早创建于 **8月8日 Forge 1.20.1 时期**（dev 日志里是 `ForgeConfigSpec/CORE` 的 Correcting 行，Forge 实现空安全），此后文件始终存在且键值齐全，NeoForge 这条带 bug 的 correct 路径在 dev 从未以"键缺失"状态执行过；且异常本身零日志，就算触发也只会看到不明所以的 broken state
+- 通用教训：① `defineInList` / `defineList` 的**校验器必须空安全**（`List.of` 做 allowedValues 或校验器都会在首次创建时踩雷，Forge 1.20.1 时代没事 ≠ NeoForge 没事）；② 分析整合包崩溃先看 latest.log 第一条 FATAL，别被 crash report 头部 NPE 带偏；③ `Cowardly refusing to send event ... to a broken mod state` = 更早的加载阶段已死，沿 FML 的 track/Loaded DEBUG 行（debug.log）向下游找第一个没走完的项；④ FML 配置阶段的异常多数静默——复现台（Maven 拉 exact 版本 jar + javap + 最小 main）比读分支 HEAD 源码可靠，分支 HEAD 与已发布 jar 的代码可能不同

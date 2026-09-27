@@ -6,7 +6,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.fml.loading.FMLPaths;
+import net.neoforged.fml.loading.FMLPaths;
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
@@ -216,7 +216,7 @@ public final class TaskPriorityManager {
         if (obj.has("order")) {
             JsonArray arr = obj.getAsJsonArray("order");
             for (int i = 0; i < arr.size(); i++) {
-                preset.getOrder().add(new ResourceLocation(arr.get(i).getAsString()));
+                preset.getOrder().add(ResourceLocation.parse(arr.get(i).getAsString()));
             }
         }
 
@@ -224,7 +224,7 @@ public final class TaskPriorityManager {
             JsonArray arr = obj.getAsJsonArray("priorities");
             for (int i = 0; i < arr.size(); i++) {
                 JsonObject item = arr.get(i).getAsJsonObject();
-                ResourceLocation taskId = new ResourceLocation(item.get("task").getAsString());
+                ResourceLocation taskId = ResourceLocation.parse(item.get("task").getAsString());
                 int priority = item.get("priority").getAsInt();
                 preset.setPriorityNoReorder(taskId, priority);
             }

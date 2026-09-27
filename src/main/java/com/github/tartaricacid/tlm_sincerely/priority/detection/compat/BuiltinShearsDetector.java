@@ -12,11 +12,11 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ShearsItem;
-import net.minecraftforge.common.IForgeShearable;
+import net.neoforged.neoforge.common.IShearable;
 
 /** Mirrors TLM TaskShears' public target requirements without changing world state. */
 public final class BuiltinShearsDetector implements TaskWorkDetector {
-    public static final ResourceLocation UID = new ResourceLocation("touhou_little_maid", "shears");
+    public static final ResourceLocation UID = ResourceLocation.fromNamespaceAndPath("touhou_little_maid", "shears");
     /** 硬性工具：剪刀，主手或背包存在即可（装备动作由 {@link MaidHardToolService} 完成）。 */
     public static final HardToolRequirement REQUIRED_TOOL = new HardToolRequirement(
             "shears", stack -> stack.getItem() instanceof ShearsItem);
@@ -40,10 +40,10 @@ public final class BuiltinShearsDetector implements TaskWorkDetector {
         ItemStack tool = MaidHardToolService.findBest(maid, REQUIRED_TOOL);
         for (LivingEntity entity : context.level().getEntitiesOfClass(LivingEntity.class,
                 maid.getBoundingBox().inflate(2.0D))) {
-            if (!(entity instanceof IForgeShearable shearable) || !entity.isAlive()
+            if (!(entity instanceof IShearable shearable) || !entity.isAlive()
                     || entity.distanceToSqr(maid) >= TARGET_RANGE_SQR
                     || !maid.isWithinRestriction(entity.blockPosition())
-                    || !shearable.isShearable(tool, context.level(), entity.blockPosition())) {
+                    || !shearable.isShearable(null, tool, context.level(), entity.blockPosition())) {
                 continue;
             }
             return new DetectionResult(task.getUid(), Availability.AVAILABLE, context.currentTick(), 20, 0,

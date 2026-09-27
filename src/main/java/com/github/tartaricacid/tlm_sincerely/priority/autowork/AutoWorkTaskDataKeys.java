@@ -23,7 +23,7 @@ import java.util.UUID;
 public final class AutoWorkTaskDataKeys {
     public static final String MOD_ID = "tlm_sincerely";
     public static final ResourceLocation STATE_KEY_ID =
-            new ResourceLocation(MOD_ID, "auto_work_state");
+            ResourceLocation.fromNamespaceAndPath(MOD_ID, "auto_work_state");
 
     private static final String TAG_ENABLED = "enabled";
     private static final String TAG_PRESET_ID = "presetId";
@@ -77,7 +77,7 @@ public final class AutoWorkTaskDataKeys {
             ListTag list = tag.getList(TAG_ORDER, Tag.TAG_STRING);
             for (int i = 0; i < list.size(); i++) {
                 try {
-                    ResourceLocation taskId = new ResourceLocation(list.getString(i));
+                    ResourceLocation taskId = ResourceLocation.parse(list.getString(i));
                     if (!order.contains(taskId)) {
                         order.add(taskId);
                     }

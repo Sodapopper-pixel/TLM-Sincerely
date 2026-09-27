@@ -1,185 +1,143 @@
-buildscript {
-    repositories {
-        maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
-    }
-    dependencies {
-        classpath group: 'org.spongepowered', name: 'mixingradle', version: '0.7-SNAPSHOT'
-    }
-}
-
 plugins {
+    id 'java-library'
     id 'eclipse'
     id 'idea'
-    id 'net.minecraftforge.gradle' version '[6.0.16,6.2)'
-    id 'org.parchmentmc.librarian.forgegradle' version '1.+'
+    id 'net.neoforged.moddev' version '2.0.147'
 }
 
-apply plugin: 'org.spongepowered.mixin'
-
-group = project.findProperty('mod_group_id') ?: 'com.github.tartaricacid'
-version = project.findProperty('mod_version') ?: '0.2.0-beta'
-archivesBaseName = "${project.findProperty('mod_id') ?: 'tlm_sincerely'}-${minecraft_version}-forge"
-
-java {
-    toolchain.languageVersion = JavaLanguageVersion.of(17)
+tasks.named('wrapper', Wrapper).configure {
+    distributionType = Wrapper.DistributionType.BIN
 }
 
-minecraft {
-    mappings channel: mapping_channel, version: mapping_version
-    copyIdeResources = true
-    runs {
-        configureEach {
-            jvmArgs = [
-                    "-XX:+IgnoreUnrecognizedVMOptions",
-                    "-XX:+AllowEnhancedClassRedefinition"
-            ]
-            workingDirectory project.file('run')
-            property 'forge.logging.markers', 'REGISTRIES'
-            property 'forge.logging.console.level', 'debug'
-            property 'mixin.env.remapRefMap', 'true'
-            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
-            mods {
-                "${mod_id}" {
-                    source sourceSets.main
-                }
-            }
-        }
-        client {
-            property 'forge.enabledGameTestNamespaces', mod_id
-        }
-        server {
-            property 'forge.enabledGameTestNamespaces', mod_id
-            args '--nogui'
-        }
-        gameTestServer {
-            property 'forge.enabledGameTestNamespaces', mod_id
-        }
-        data {
-            workingDirectory project.file('run')
-            args '--mod', mod_id, '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
-        }
-    }
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = "${mod_id}-${minecraft_version}-neoforge"
 }
 
-mixin {
-    add sourceSets.main, "${mod_id}.refmap.json"
-    config "${mod_id}.mixins.json"
-}
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
-sourceSets.main.resources { srcDir 'src/generated/resources' }
+sourceSets.main.resources {
+    srcDir('src/generated/resources')
+}
 
 repositories {
-    flatDir {
-        dir 'libs'
-    }
     maven {
-        url = "https://api.modrinth.com/maven"
+        name = 'Modrinth'
+        url = 'https://api.modrinth.com/maven'
         content {
-            includeGroup "maven.modrinth"
+            includeGroup 'maven.modrinth'
         }
     }
     maven {
-        name = "Curse Maven"
-        url = "https://www.cursemaven.com"
+        name = 'Curse Maven'
+        url = 'https://www.cursemaven.com'
         content {
-            includeGroup "curse.maven"
+            includeGroup 'curse.maven'
         }
     }
     maven {
-        name = "Jared's maven"
-        url = "https://maven.blamejared.com/"
+        name = 'Shedaniel'
+        url = 'https://maven.shedaniel.me/'
         content {
-            includeGroup "mezz.jei"
-            includeGroup "vazkii.patchouli"
+            includeGroup 'me.shedaniel'
+            includeGroup 'me.shedaniel.cloth'
+            includeGroup 'dev.architectury'
         }
     }
-    maven {
-        url = "https://maven.createmod.net"
-        content {
-            includeGroup "net.createmod.ponder"
-            includeGroup "dev.engine-room.flywheel"
+}
+
+neoForge {
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    runs {
+        client {
+            client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
+
+        server {
+            server()
+            programArgument '--nogui'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        gameTestServer {
+            type = 'gameTestServer'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        data {
+            data()
+            programArguments.addAll '--mod', project.mod_id, '--all',
+                    '--output', file('src/generated/resources/').getAbsolutePath(),
+                    '--existing', file('src/main/resources/').getAbsolutePath()
+        }
+
+        configureEach {
+            jvmArguments = [
+                    '-XX:+IgnoreUnrecognizedVMOptions',
+                    '-XX:+AllowEnhancedClassRedefinition'
+            ]
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+
+    // 把 MC/NeoForge 类接入 test 源集（memory/decision 单测需要 MC 类型）
+    unitTest {
+        enable()
+        testedMod = mods.getByName(mod_id)
+    }
+}
+
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+    // unitTest 接线会把 junit-fml（FML 的 JUnit 会话监听器，需要完整启动环境）带进测试运行时，
+    // 纯单测（memory/decision）不需要它，排除后 JUnit 以普通模式运行。
+    testRuntimeClasspath {
+        exclude group: 'net.neoforged.fancymodloader', module: 'junit-fml'
     }
 }
 
 dependencies {
-    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
-    implementation fg.deobf("maven.modrinth:touhou-little-maid:1.5.3-forge+mc1.20.1")
+    implementation "maven.modrinth:touhou-little-maid:${tlm_version}"
+    // Official Cloth Maven (Modrinth POM-only artifact is unreliable for MDG)
+    implementation "me.shedaniel.cloth:cloth-config-neoforge:15.0.140"
+    // Jade integration (optional at runtime; API needed at compile time)
+    compileOnly "maven.modrinth:jade:15.10.2+neoforge"
+    // Maidsoul Kitchen integration (optional addon; compile-time API only)
+    compileOnly "curse.maven:maidsoul-kitchen-1162577:7751437"
 
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
-
-    runtimeOnly fg.deobf("mezz.jei:jei-1.20.1-forge:15.20.0.106")
-    compileOnly fg.deobf("curse.maven:jade-324717:5072729")
-    runtimeOnly fg.deobf("curse.maven:jade-324717:5072729")
-    runtimeOnly fg.deobf("maven.modrinth:curios:5.14.1+1.20.1-forge")
-    runtimeOnly fg.deobf("maven.modrinth:farmers-delight:1.20.1-1.2.6-forge")
-    runtimeOnly fg.deobf("maven.modrinth:sophisticated-backpacks:1.20.1-3.23.23.1297")
-    runtimeOnly fg.deobf("maven.modrinth:sophisticated-core:1.20.1-1.2.80.1073")
-    runtimeOnly fg.deobf("maven.modrinth:embeddium:0.3.31+mc1.20.1")
-    runtimeOnly fg.deobf("curse.maven:maid-storage-manager-1210244:7976861")
-    runtimeOnly fg.deobf("net.createmod.ponder:Ponder-Forge-1.20.1:1.0.80")
-    runtimeOnly fg.deobf("maven.modrinth:create:1.20.1-6.0.6")
-    runtimeOnly fg.deobf("maven.modrinth:kaleidoscope-cookery:1.2.0-forge+mc1.20.1")
-    runtimeOnly fg.deobf("vazkii.patchouli:Patchouli:1.20.1-84-FORGE")
-
-    // Optional development-only runtime mods loaded from local libs/ when present.
-    def optionalRuntimeJar = { String fileName, String coordinate ->
-        def f = file("libs/${fileName}")
-        if (f.exists()) {
-            runtimeOnly fg.deobf("libs:${coordinate}")
-        } else {
-            logger.warn("libs/${fileName} not found, skipping optional dev dependency")
-        }
-    }
-    optionalRuntimeJar('catalogue-forge-1.20.1-1.8.0.jar', 'catalogue-forge:1.20.1-1.8.0')
-    optionalRuntimeJar('configured-forge-1.20.1-2.2.3.jar', 'configured-forge:1.20.1-2.2.3')
-    optionalRuntimeJar('Searchables-forge-1.0.3.jar', 'Searchables-forge:1.0.3')
-    optionalRuntimeJar('Controlling-forge-1.20.1-12.0.2.jar', 'Controlling-forge:1.20.1-12.0.2')
-    optionalRuntimeJar('MouseTweaks-forge-2.25.1.jar', 'MouseTweaks-forge:2.25.1')
-    optionalRuntimeJar('visual_keybinder-1.20.1-0.1.11.jar', 'visual_keybinder:1.20.1-0.1.11')
-    optionalRuntimeJar('modnametooltip-forge-1.20.1-1.20.0.jar', 'modnametooltip-forge:1.20.1-1.20.0')
-    optionalRuntimeJar('ModernUI-Forge-1.20.1-3.12.0.1.jar', 'ModernUI-Forge:1.20.1-3.12.0.1')
-    optionalRuntimeJar('maid_useful_task-forge-1.20.1-1.4.0.jar', 'maid_useful_task-forge:1.20.1-1.4.0')
-    def maidSoulKitchen = file('libs/maidsoulkitchen-forge-1.20.1-0.3.0.9.jar')
-    if (maidSoulKitchen.exists()) {
-        compileOnly fg.deobf("libs:maidsoulkitchen-forge:1.20.1-0.3.0.9")
-        runtimeOnly fg.deobf("libs:maidsoulkitchen-forge:1.20.1-0.3.0.9")
-    } else {
-        logger.warn("libs/maidsoulkitchen-forge-1.20.1-0.3.0.9.jar not found, skipping optional dev dependency")
-    }
-    // IMBlocker 必须走 fg.deobf；且需使用 devfix 版：
-    // 原版 WindowMixin 同时注入 setGuiScale(D)V 与 setGuiScale(I)V（多版本兼容），
-    // 在 1.20.1 userdev 下 int 重载会被错误匹配到 double 方法导致 InvalidInjectionException。
-    // libs/IMBlocker-forge-5.4.6.1-devfix.jar 已移除 int 注入，仅保留 double。
-    def imBlocker = file('libs/IMBlocker-forge-5.4.6.1-devfix.jar')
-    if (imBlocker.exists()) {
-        runtimeOnly fg.deobf("libs:IMBlocker-forge:5.4.6.1-devfix")
-    } else {
-        logger.warn("libs/IMBlocker-forge-5.4.6.1-devfix.jar not found, skipping optional dev dependency")
-    }
-    implementation fg.deobf("curse.maven:cloth-config-348521:5729105")
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
 }
 
-// 历史任务：曾把生产 jar 拷进 run/mods，在 userdev 下不可靠。
-// dynamic-fps 即便 fg.deobf 后 Mixin 仍因 SRG target 对不上 FATAL，故不在 dev 依赖中加载。
-tasks.register('copyModsToLocalRun') {
-    doLast {
-        logger.lifecycle('copyModsToLocalRun is no-op: use runtimeOnly fg.deobf for mods that need remapping. Do not put production jars into run/mods.')
-    }
-}
-
-processResources {
+var generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {
+    // 中文 description 必须以 UTF-8 展开；缺省时随启动环境变（GBK 环境会产出非法 UTF-8 的 toml，
+    // FML 扫描 mod 文件时直接 MalformedInputException）
     filteringCharset = 'UTF-8'
     var replaceProperties = [
             minecraft_version      : minecraft_version,
             minecraft_version_range: minecraft_version_range,
-            forge_version          : forge_version,
-            forge_version_range    : forge_version_range,
+            neo_version            : neo_version,
+            neo_version_range      : neo_version_range,
             loader_version_range   : loader_version_range,
             mod_id                 : mod_id,
             mod_name               : mod_name,
@@ -189,21 +147,25 @@ processResources {
             mod_description        : mod_description
     ]
     inputs.properties replaceProperties
-    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
-        expand replaceProperties + [project: project]
-    }
+    expand replaceProperties
+    from 'src/main/templates'
+    into 'build/generated/sources/modMetadata'
+}
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+processResources {
+    filteringCharset = 'UTF-8'
 }
 
 jar {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     manifest {
         attributes([
-                "Implementation-Title"  : project.name,
-                "Implementation-Version": "${version}",
-                "MixinConfigs"          : "${mod_id}.mixins.json"
+                'Implementation-Title'  : project.name,
+                'Implementation-Version': "${version}"
         ])
     }
-    finalizedBy 'reobfJar'
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -217,7 +179,6 @@ idea {
     }
 }
 
-// ===== Memory harness golden tools (src/test, no Forge bootstrap required) =====
 def goldenMainClass = 'com.github.tartaricacid.tlm_sincerely.memory.GoldenDump'
 tasks.register('generateGolden', JavaExec) {
     group = 'verification'

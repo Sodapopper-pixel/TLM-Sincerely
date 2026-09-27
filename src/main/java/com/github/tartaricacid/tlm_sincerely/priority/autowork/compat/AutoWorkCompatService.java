@@ -49,7 +49,7 @@ public final class AutoWorkCompatService {
      * compatibility report and its counts, but stays in the registered UID set
      * so configured lists referencing it are still validated.
      */
-    public static final ResourceLocation IDLE_UID = new ResourceLocation("touhou_little_maid", "idle");
+    public static final ResourceLocation IDLE_UID = ResourceLocation.fromNamespaceAndPath("touhou_little_maid", "idle");
 
     private final MinecraftServer server;
     private final Map<ResourceLocation, ReportEntry> report = new LinkedHashMap<>();

@@ -3,7 +3,7 @@ package com.github.tartaricacid.tlm_sincerely.command;
 import com.github.tartaricacid.tlm_sincerely.config.subconfig.MaidCommandConfig;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.fml.loading.FMLPaths;
+import net.neoforged.fml.loading.FMLPaths;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

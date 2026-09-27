@@ -1,5 +1,6 @@
 package com.github.tartaricacid.tlm_sincerely.priority.detection.compat;
 
+import com.github.tartaricacid.tlm_sincerely.priority.detection.AttackTaskWorkDetector;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.Availability;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.DetectionContext;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.DetectionResult;
@@ -8,15 +9,13 @@ import com.github.tartaricacid.touhoulittlemaid.api.task.IMaidTask;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.NearestVisibleLivingEntities;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.common.ForgeConfigSpec;
-import net.minecraftforge.items.IItemHandler;
+import net.neoforged.neoforge.common.ModConfigSpec;
+import net.neoforged.neoforge.items.IItemHandler;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -51,7 +50,7 @@ import java.util.Optional;
  * machine.
  */
 public final class MaidSoulKitchenFeedAnimalDetector implements TaskWorkDetector {
-    public static final ResourceLocation UID = new ResourceLocation("maidsoulkitchen", "feed_animal_t");
+    public static final ResourceLocation UID = ResourceLocation.fromNamespaceAndPath("maidsoulkitchen", "feed_animal_t");
     /** Lower bound of a breeding group, matching the player-facing "3..max-3" rule. */
     private static final int BREEDING_GROUP_MIN = 3;
     private static final int CLEANUP_GROUP_OFFSET = 2;
@@ -162,8 +161,9 @@ public final class MaidSoulKitchenFeedAnimalDetector implements TaskWorkDetector
     /** Mirrors {@code TaskFeedAnimalT#hasAssaultWeapon}: main-hand item must carry attack damage. */
     private static boolean hasAssaultWeapon(EntityMaid maid) {
         ItemStack mainHand = maid.getMainHandItem();
-        return !mainHand.isEmpty()
-                && mainHand.getAttributeModifiers(EquipmentSlot.MAINHAND).containsKey(Attributes.ATTACK_DAMAGE);
+        // 1.21.1: per-slot attribute map is gone; AttackTaskWorkDetector walks
+        // forEachModifier(MAINHAND) for the same "carries attack damage" verdict.
+        return !mainHand.isEmpty() && AttackTaskWorkDetector.hasMainHandAttackDamage(mainHand);
     }
 
     private static DetectionResult unavailable(DetectionContext context, IMaidTask task, String evidence) {
@@ -191,7 +191,7 @@ public final class MaidSoulKitchenFeedAnimalDetector implements TaskWorkDetector
                 Class<?> configClass = Class.forName(TASK_CONFIG_CLASS);
                 Field field = configClass.getField(MAX_NUMBER_FIELD);
                 Object configValue = field.get(null);
-                if (configValue instanceof ForgeConfigSpec.ConfigValue<?> typed) {
+                if (configValue instanceof ModConfigSpec.ConfigValue<?> typed) {
                     Object raw = typed.get();
                     if (raw instanceof Integer count && count > 0) {
                         return count;

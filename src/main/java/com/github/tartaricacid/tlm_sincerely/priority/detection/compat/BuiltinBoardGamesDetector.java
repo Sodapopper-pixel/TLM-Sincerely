@@ -20,7 +20,7 @@ import java.util.UUID;
 
 /** Read-only equivalent of TLM MaidBoardGameTask's JOY_BLOCK target search. */
 public final class BuiltinBoardGamesDetector implements TaskWorkDetector {
-    public static final ResourceLocation UID = new ResourceLocation("touhou_little_maid", "board_games");
+    public static final ResourceLocation UID = ResourceLocation.fromNamespaceAndPath("touhou_little_maid", "board_games");
     private static final double CLOSE_ENOUGH_SQR = 4.0D;
 
     @Override

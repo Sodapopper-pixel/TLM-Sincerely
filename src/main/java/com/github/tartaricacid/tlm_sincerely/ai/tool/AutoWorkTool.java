@@ -321,7 +321,7 @@ public class AutoWorkTool implements ITool<AutoWorkTool.Result> {
             return null;
         }
         try {
-            return new ResourceLocation(raw.trim());
+            return ResourceLocation.parse(raw.trim());
         } catch (RuntimeException e) {
             return null;
         }

@@ -1,6 +1,6 @@
 package com.github.tartaricacid.tlm_sincerely.config.subconfig;
 
-import net.minecraftforge.common.ForgeConfigSpec;
+import net.neoforged.neoforge.common.ModConfigSpec;
 
 import java.util.List;
 
@@ -21,19 +21,19 @@ public final class MaidCommandConfig {
             "tlmchat", "tlmmemory", "tlmautowork", "tlm", "tlmconfirm"
     );
 
-    public static ForgeConfigSpec.BooleanValue COMMAND_TOOL_ENABLED;
-    public static ForgeConfigSpec.BooleanValue CONFIRMATION_ENABLED;
-    public static ForgeConfigSpec.BooleanValue SESSION_CONFIRMATION_ENABLED;
-    public static ForgeConfigSpec.IntValue CONFIRMATION_TIMEOUT_SECONDS;
-    public static ForgeConfigSpec.ConfigValue<List<? extends String>> CONFIRMATION_REQUIRED_COMMANDS;
-    public static ForgeConfigSpec.ConfigValue<List<? extends String>> BLACKLISTED_COMMANDS;
-    public static ForgeConfigSpec.IntValue MAX_PERMISSION_LEVEL;
-    public static ForgeConfigSpec.IntValue MAX_COMMANDS_PER_REQUEST;
-    public static ForgeConfigSpec.IntValue MAX_COMMAND_LENGTH;
-    public static ForgeConfigSpec.IntValue TOOL_RESULT_MAX_CHARS;
-    public static ForgeConfigSpec.IntValue AUDIT_LOG_MAX_SIZE_MB;
+    public static ModConfigSpec.BooleanValue COMMAND_TOOL_ENABLED;
+    public static ModConfigSpec.BooleanValue CONFIRMATION_ENABLED;
+    public static ModConfigSpec.BooleanValue SESSION_CONFIRMATION_ENABLED;
+    public static ModConfigSpec.IntValue CONFIRMATION_TIMEOUT_SECONDS;
+    public static ModConfigSpec.ConfigValue<List<? extends String>> CONFIRMATION_REQUIRED_COMMANDS;
+    public static ModConfigSpec.ConfigValue<List<? extends String>> BLACKLISTED_COMMANDS;
+    public static ModConfigSpec.IntValue MAX_PERMISSION_LEVEL;
+    public static ModConfigSpec.IntValue MAX_COMMANDS_PER_REQUEST;
+    public static ModConfigSpec.IntValue MAX_COMMAND_LENGTH;
+    public static ModConfigSpec.IntValue TOOL_RESULT_MAX_CHARS;
+    public static ModConfigSpec.IntValue AUDIT_LOG_MAX_SIZE_MB;
 
-    public static void init(ForgeConfigSpec.Builder builder) {
+    public static void init(ModConfigSpec.Builder builder) {
         builder.push("maid_command");
 
         builder.comment("Expose the run_command AI tool to the maid (she executes Minecraft commands as the owner)");

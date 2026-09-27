@@ -4,7 +4,6 @@ import com.github.tartaricacid.tlm_sincerely.client.autowork.AutoWorkClientLibra
 import com.github.tartaricacid.tlm_sincerely.client.network.ClientAutoWorkService;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPreset;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.menu.AutoWorkConfigContainer;
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkNetworking;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkSnapshot;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.SetMaidAutoWorkPresetC2SPacket;
 import com.github.tartaricacid.touhoulittlemaid.api.task.IMaidTask;
@@ -17,6 +16,7 @@ import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.network.PacketDistributor;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
@@ -40,7 +40,7 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
     private static final int PANEL_WIDTH = 176;
     private static final int PANEL_HEIGHT = 137;
     private static final ResourceLocation PANEL_TEXTURE =
-            new ResourceLocation("touhou_little_maid", "textures/gui/maid_gui_main.png");
+            ResourceLocation.fromNamespaceAndPath("touhou_little_maid", "textures/gui/maid_gui_main.png");
 
     /** Row / column layout (panel-relative). */
     private static final int ROW_HEIGHT = 16;
@@ -147,14 +147,14 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollDelta) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         int panelX = getGuiLeft() + PANEL_OFFSET_X;
         int panelY = getGuiTop() + PANEL_OFFSET_Y;
         int rowsY = panelY + ROWS_TOP;
         int rowsH = rowsHeight();
         int leftX = panelX + LEFT_COLUMN_X;
         int rightX = panelX + RIGHT_COLUMN_X;
-        int delta = scrollDelta > 0 ? -1 : 1;
+        int delta = scrollY > 0 ? -1 : 1;
         int columnInteractionWidth = SCROLLBAR_LEFT_X + SCROLLBAR_WIDTH - LEFT_COLUMN_X;
         if (isInside(mouseX, mouseY, leftX, rowsY, columnInteractionWidth, rowsH)) {
             leftScroll = clampScroll(leftScroll + delta, availableTaskCount);
@@ -166,7 +166,7 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
             dirty = true;
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, scrollDelta);
+        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
     }
 
     @Override
@@ -568,7 +568,7 @@ public class AutoWorkConfigScreen extends AbstractMaidContainerGui<AutoWorkConfi
         if (maid == null) {
             return;
         }
-        AutoWorkNetworking.channel().sendToServer(new SetMaidAutoWorkPresetC2SPacket(
+        PacketDistributor.sendToServer(new SetMaidAutoWorkPresetC2SPacket(
                 maid.getUUID(), preset.getId(), preset.getName(), preset.getOrder()));
     }
 

@@ -1,23 +1,24 @@
 package com.github.tartaricacid.tlm_sincerely.config.subconfig;
 
-import net.minecraftforge.common.ForgeConfigSpec;
+import net.neoforged.neoforge.common.ModConfigSpec;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public final class MemoryConfig {
-    public static ForgeConfigSpec.BooleanValue ENABLED;
-    public static ForgeConfigSpec.IntValue MAX_MEMORIES;
-    public static ForgeConfigSpec.IntValue CORE_LIMIT;
-    public static ForgeConfigSpec.IntValue CONTEXT_PREVIEW_LENGTH;
-    public static ForgeConfigSpec.BooleanValue AUTO_EVICT;
-    public static ForgeConfigSpec.BooleanValue MEMORY_GUIDANCE;
-    public static ForgeConfigSpec.BooleanValue TIDY_ENABLED;
-    public static ForgeConfigSpec.DoubleValue TIDY_THRESHOLD;
-    public static ForgeConfigSpec.IntValue TIDY_COOLDOWN_MINUTES;
-    public static ForgeConfigSpec.BooleanValue SHOW_SOURCE;
-    public static ForgeConfigSpec.ConfigValue<String> PREVIEW_MODE;
+    public static ModConfigSpec.BooleanValue ENABLED;
+    public static ModConfigSpec.IntValue MAX_MEMORIES;
+    public static ModConfigSpec.IntValue CORE_LIMIT;
+    public static ModConfigSpec.IntValue CONTEXT_PREVIEW_LENGTH;
+    public static ModConfigSpec.BooleanValue AUTO_EVICT;
+    public static ModConfigSpec.BooleanValue MEMORY_GUIDANCE;
+    public static ModConfigSpec.BooleanValue TIDY_ENABLED;
+    public static ModConfigSpec.DoubleValue TIDY_THRESHOLD;
+    public static ModConfigSpec.IntValue TIDY_COOLDOWN_MINUTES;
+    public static ModConfigSpec.BooleanValue SHOW_SOURCE;
+    public static ModConfigSpec.ConfigValue<String> PREVIEW_MODE;
 
-    public static void init(ForgeConfigSpec.Builder builder) {
+    public static void init(ModConfigSpec.Builder builder) {
         builder.push("memory");
 
         builder.comment("Enable the maid memory system");
@@ -51,7 +52,9 @@ public final class MemoryConfig {
         SHOW_SOURCE = builder.define("ShowSource", false);
 
         builder.comment("Preview mode for archive memories: 'full' (key + truncated value) or 'keys_only' (key only)");
-        PREVIEW_MODE = builder.defineInList("PreviewMode", "full", List.of("full", "keys_only"));
+        // allowedValues 必须是可变 List：NeoForge ModConfigSpec.correct 对缺失键以 null 调用校验器，
+        // 而 JDK 不可变 List.of(...).contains(null) 会抛 NPE（首次创建配置文件时静默炸掉整个加载流程）
+        PREVIEW_MODE = builder.defineInList("PreviewMode", "full", new ArrayList<>(List.of("full", "keys_only")));
 
         builder.pop();
     }

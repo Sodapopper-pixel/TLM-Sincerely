@@ -11,7 +11,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.items.IItemHandler;
+import net.neoforged.neoforge.items.IItemHandler;
 
 /**
  * Conservative read-only equivalent of TLM TaskFeedOwner / MaidFeedOwnerTask
@@ -23,7 +23,7 @@ import net.minecraftforge.items.IItemHandler;
  * (missing food reads as UNAVAILABLE on purpose).
  */
 public final class BuiltinFeedOwnerDetector implements TaskWorkDetector {
-    public static final ResourceLocation UID = new ResourceLocation("touhou_little_maid", "feed");
+    public static final ResourceLocation UID = ResourceLocation.fromNamespaceAndPath("touhou_little_maid", "feed");
     private static final int CLOSE_ENOUGH_DIST = 2;
 
     @Override

@@ -43,7 +43,11 @@ public final class MaidCommandExecutor {
 
         int resultCode = 0;
         try {
-            resultCode = server.getCommands().performPrefixedCommand(stack, command);
+            // NeoForge 1.21: performPrefixedCommand returns void, the brigadier
+            // result value is no longer exposed. The code is never used to
+            // decide success/failure (that is outcome.error()), so success is
+            // treated as "executed" and the recorded code stays 0.
+            server.getCommands().performPrefixedCommand(stack, command);
         } catch (Throwable throwable) {
             // Vanilla already converts CommandSyntaxException and other
             // runtime exceptions into failure text; this catches cancelled

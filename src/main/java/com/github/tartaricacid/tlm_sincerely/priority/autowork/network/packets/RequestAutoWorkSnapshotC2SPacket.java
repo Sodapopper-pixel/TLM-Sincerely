@@ -1,29 +1,32 @@
 package com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets;
 
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkNetworking;
+import com.github.tartaricacid.tlm_sincerely.SincerelyExtension;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkServerHandler;
-import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.network.NetworkEvent;
-
-import java.util.function.Supplier;
+import io.netty.buffer.ByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 /** C2S: request a fresh snapshot. No payload. */
-public final class RequestAutoWorkSnapshotC2SPacket {
-    public static final int INDEX = 1;
+public record RequestAutoWorkSnapshotC2SPacket() implements CustomPacketPayload {
+    public static final Type<RequestAutoWorkSnapshotC2SPacket> TYPE = new Type<>(
+            ResourceLocation.fromNamespaceAndPath(SincerelyExtension.MOD_ID, "auto_work/request_snapshot"));
 
-    public static void encode(RequestAutoWorkSnapshotC2SPacket msg, FriendlyByteBuf buf) {
-        // No payload; the request alone triggers a snapshot.
+    public static final RequestAutoWorkSnapshotC2SPacket INSTANCE = new RequestAutoWorkSnapshotC2SPacket();
+
+    public static final StreamCodec<ByteBuf, RequestAutoWorkSnapshotC2SPacket> STREAM_CODEC =
+            StreamCodec.unit(INSTANCE);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 
-    public static RequestAutoWorkSnapshotC2SPacket decode(FriendlyByteBuf buf) {
-        return new RequestAutoWorkSnapshotC2SPacket();
-    }
-
-    public static void handle(RequestAutoWorkSnapshotC2SPacket msg, Supplier<NetworkEvent.Context> ctx) {
-        ctx.get().enqueueWork(() -> {
-            NetworkEvent.Context c = ctx.get();
-            AutoWorkServerHandler.sendSnapshot(c.getSender());
-        });
-        ctx.get().setPacketHandled(true);
+    public static void handle(RequestAutoWorkSnapshotC2SPacket msg, IPayloadContext context) {
+        if (context.player() instanceof ServerPlayer sender) {
+            AutoWorkServerHandler.sendSnapshot(sender);
+        }
     }
 }

@@ -2,7 +2,6 @@ package com.github.tartaricacid.tlm_sincerely.client.autowork;
 
 import com.github.tartaricacid.tlm_sincerely.SincerelyExtension;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPreset;
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkNetworking;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkPresetData;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.AutoWorkPushOfferC2SPacket;
 import com.mojang.brigadier.CommandDispatcher;
@@ -13,10 +12,10 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.RegisterClientCommandsEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,8 +32,7 @@ import java.util.UUID;
  * dispatcher, so {@code /tlmautowork compat ...} and the accept/reject
  * buttons keep working.
  */
-@Mod.EventBusSubscriber(modid = SincerelyExtension.MOD_ID,
-        bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
+@EventBusSubscriber(modid = SincerelyExtension.MOD_ID, value = Dist.CLIENT)
 public final class AutoWorkPushCommand {
     private static final String BROADCAST_TARGET = "all";
 
@@ -83,7 +81,7 @@ public final class AutoWorkPushCommand {
             error(Component.translatable("command.tlm_sincerely.autowork.push.empty"));
             return 0;
         }
-        AutoWorkNetworking.channel().sendToServer(
+        net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                 new AutoWorkPushOfferC2SPacket(broadcast, broadcast ? "" : target, payload));
         return 1;
     }

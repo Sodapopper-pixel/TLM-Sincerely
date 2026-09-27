@@ -3,7 +3,7 @@ package com.github.tartaricacid.tlm_sincerely.priority.detection.compat;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.AttackTaskWorkDetector;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.MaidHardToolService;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.TaskWorkDetectorRegistry;
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
 
 /** Registers only detectors whose task semantics were verified against installed jars. */
 public final class CompatDetectorBootstrap {
@@ -38,9 +38,10 @@ public final class CompatDetectorBootstrap {
         MaidHardToolService.register(AttackTaskWorkDetector.UID_DANMAKU, AttackTaskWorkDetector.DANMAKU_WEAPON);
         TaskWorkDetectorRegistry.register(BuiltinBoardGamesDetector.UID, new BuiltinBoardGamesDetector());
         if (ModList.get().isLoaded("maidsoulkitchen")) {
-            if (isClassPresent("com.github.wallev.maidsoulkitchen.api.task.farm.ICompatFarmTask")
-                    && isClassPresent("com.github.wallev.maidsoulkitchen.api.task.farm.ICompatFarmHandler")
-                    && isClassPresent("com.github.wallev.maidsoulkitchen.entity.data.inner.task.berryfruit.v1.BerryFruitData")) {
+            // MSK 1.21.1（beta 0.1.4）API 已迁移至 api/task/v1/farm，数据类拆为 FarmData/FruitData。
+            if (isClassPresent("com.github.wallev.maidsoulkitchen.api.task.v1.farm.ICompatFarm")
+                    && isClassPresent("com.github.wallev.maidsoulkitchen.api.task.v1.farm.ICompatFarmHandler")
+                    && isClassPresent("com.github.wallev.maidsoulkitchen.entity.data.inner.task.FarmData")) {
                 TaskWorkDetectorRegistry.register(MaidSoulKitchenBerryDetector.UID,
                         new MaidSoulKitchenBerryDetector());
                 TaskWorkDetectorRegistry.register(MaidSoulKitchenFruitDetector.UID,

@@ -27,7 +27,7 @@ import java.util.List;
  * checks: the agent spawns at the maid's own position. Never calls ItemsUtil.
  */
 public final class BuiltinExtinguishingDetector implements TaskWorkDetector {
-    public static final ResourceLocation UID = new ResourceLocation("touhou_little_maid", "extinguishing");
+    public static final ResourceLocation UID = ResourceLocation.fromNamespaceAndPath("touhou_little_maid", "extinguishing");
     /** 硬性工具：灭火器，主手或背包存在即可（装备动作由 {@link MaidHardToolService} 完成）。 */
     public static final HardToolRequirement REQUIRED_TOOL = new HardToolRequirement(
             "extinguisher", stack -> stack.getItem() == InitItems.EXTINGUISHER.get());

@@ -21,14 +21,14 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.MemoryStatus;
 import net.minecraft.world.entity.schedule.Activity;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.entity.EntityJoinLevelEvent;
-import net.minecraftforge.event.entity.EntityLeaveLevelEvent;
-import net.minecraftforge.event.entity.living.LivingDeathEvent;
-import net.minecraftforge.event.server.ServerStartingEvent;
-import net.minecraftforge.event.server.ServerStoppedEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
+import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
+import net.neoforged.neoforge.event.server.ServerStartingEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,7 +56,7 @@ import java.util.UUID;
  *       library is private to each client and is never consulted here.</li>
  * </ol>
  */
-@Mod.EventBusSubscriber(modid = SincerelyExtension.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
+@EventBusSubscriber(modid = SincerelyExtension.MOD_ID)
 public final class TaskAutoSwitchHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(TaskAutoSwitchHandler.class);
     private static final int STUCK_BRAIN_REFRESH_TICKS = 60;
@@ -178,16 +178,13 @@ public final class TaskAutoSwitchHandler {
     }
 
     @SubscribeEvent
-    public static void onServerTick(TickEvent.ServerTickEvent event) {
+    public static void onServerTick(ServerTickEvent.Post event) {
         // Always clear any stale internal-setTask guard at the start of a
         // tick. If a previous call forgot to clear it (e.g. an exception
         // slipped past the finally block), this prevents the flag from
         // bleeding into unrelated work on the same thread.
         AutoWorkInternalSetTaskGuard.clearIfStale("TaskAutoSwitchHandler#onServerTick");
 
-        if (event.phase != TickEvent.Phase.END) {
-            return;
-        }
         // Global switch off: pause scheduling. Do NOT call setTask, do
         // NOT touch AutoWorkState, do NOT touch the real task. The
         // detection caches and switch state remain so re-enabling picks

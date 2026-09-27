@@ -11,10 +11,11 @@ import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.AbstractCookingRecipe;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
+import net.minecraft.world.item.crafting.SingleRecipeInput;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.world.level.block.entity.BlastFurnaceBlockEntity;
@@ -22,9 +23,8 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.FurnaceBlockEntity;
 import net.minecraft.world.level.block.entity.SmokerBlockEntity;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
-import net.minecraftforge.common.ForgeHooks;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.ItemHandlerHelper;
+import net.neoforged.neoforge.items.IItemHandler;
+import net.neoforged.neoforge.items.ItemHandlerHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,7 +44,7 @@ import java.util.Optional;
  * {@code UNKNOWN}.
  *
  * <p>Work is judged with vanilla read-only APIs only:
- * {@link RecipeManager}, furnace slots and fuel ({@code ForgeHooks.getBurnTime}
+ * {@link RecipeManager}, furnace slots and fuel ({@code ItemStack#getBurnTime}
  * / the LIT block state). A device that merely exists is never reported as
  * work — a cookable recipe, fuel and free result space are all required.
  * The addon cook state machine (MaidCookManager / CookMakeTask) is never
@@ -52,12 +52,22 @@ import java.util.Optional;
  *
  * <p>Scanning is incremental (ring scan through {@link TaskScanCursor}) under
  * the shared block budget, with Home/owner and path-budget constraints.
+ *
+ * <p>MaidSoulKitchen 1.21.1 (beta-0.1.4) degradation: {@code cook.v1.KitchenData}
+ * (and its {@code getCookName()}) was removed — the new {@code CookData} only
+ * carries whitelist/blacklist recipe rules — and the aggregate
+ * {@code maidsoulkitchen:cook} task is no longer registered in
+ * {@code TaskInfo} (devices became standalone tasks such as
+ * {@code maidsoulkitchen:furnace}). On that version {@link #supports} therefore
+ * stays false, and any legacy cook task yields {@code COOK_REFLEX_FAIL} (the
+ * reflection target is gone, silently) — the detector conservatively reports
+ * UNKNOWN / inactive instead of guessing a device from the new API.
  */
 public final class MaidSoulKitchenCookDetector implements TaskWorkDetector {
     private static final Logger LOGGER = LoggerFactory.getLogger(MaidSoulKitchenCookDetector.class);
-    public static final ResourceLocation UID = new ResourceLocation("maidsoulkitchen", "cook");
+    public static final ResourceLocation UID = ResourceLocation.fromNamespaceAndPath("maidsoulkitchen", "cook");
     /** The only supported device; everything else is conservatively unsupported. */
-    private static final ResourceLocation FURNACE_DEVICE = new ResourceLocation("maidsoulkitchen", "furnace");
+    private static final ResourceLocation FURNACE_DEVICE = ResourceLocation.fromNamespaceAndPath("maidsoulkitchen", "furnace");
     /** Vanilla furnace slots: 0 = ingredient input, 1 = fuel, 2 = result. */
     private static final int SLOT_INPUT = 0;
     private static final int SLOT_FUEL = 1;
@@ -162,12 +172,19 @@ public final class MaidSoulKitchenCookDetector implements TaskWorkDetector {
         if (input.isEmpty()) {
             return false;
         }
-        Optional<? extends AbstractCookingRecipe> recipe =
-                level.getRecipeManager().getRecipeFor(recipeType, new SimpleContainer(input), level);
+        // 1.21.1: the input must be a RecipeInput; the furnace input slot is a single
+        // stack, which is exactly what SingleRecipeInput models. getRecipeFor now
+        // wraps the match in RecipeHolder, hence the .value() unwrap. The wildcard
+        // recipe type must be erased to AbstractCookingRecipe for inference — the
+        // cast never executes at runtime (erasure), it only narrows the static type.
+        @SuppressWarnings("unchecked")
+        RecipeType<AbstractCookingRecipe> cookingType = (RecipeType<AbstractCookingRecipe>) recipeType;
+        Optional<RecipeHolder<AbstractCookingRecipe>> recipe =
+                level.getRecipeManager().getRecipeFor(cookingType, new SingleRecipeInput(input), level);
         if (recipe.isEmpty()) {
             return false;
         }
-        AbstractCookingRecipe cooking = recipe.get();
+        AbstractCookingRecipe cooking = recipe.get().value();
         if (!storedResult.isEmpty()) {
             ItemStack output = cooking.getResultItem(level.registryAccess());
             if (!ItemStack.isSameItem(storedResult, output)
@@ -186,13 +203,13 @@ public final class MaidSoulKitchenCookDetector implements TaskWorkDetector {
             return true;
         }
         ItemStack fuelStack = furnace.getItem(SLOT_FUEL);
-        if (!fuelStack.isEmpty() && ForgeHooks.getBurnTime(fuelStack, recipeType) > 0) {
+        if (!fuelStack.isEmpty() && fuelStack.getBurnTime(recipeType) > 0) {
             return true;
         }
         IItemHandler inventory = maid.getAvailableInv(true);
         for (int slot = 0; slot < inventory.getSlots(); slot++) {
             ItemStack stack = inventory.getStackInSlot(slot);
-            if (!stack.isEmpty() && ForgeHooks.getBurnTime(stack, recipeType) > 0) {
+            if (!stack.isEmpty() && stack.getBurnTime(recipeType) > 0) {
                 return true;
             }
         }

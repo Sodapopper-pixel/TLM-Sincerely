@@ -16,7 +16,7 @@ import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.NearestVisibleLivingEntities;
-import net.minecraftforge.common.ToolActions;
+import net.neoforged.neoforge.common.ItemAbilities;
 
 import java.util.Comparator;
 import java.util.List;
@@ -38,10 +38,10 @@ import java.util.Optional;
  * The water scan is fully block-budgeted.
  */
 public final class BuiltinFishingDetector implements TaskWorkDetector {
-    public static final ResourceLocation UID = new ResourceLocation("touhou_little_maid", "fishing");
+    public static final ResourceLocation UID = ResourceLocation.fromNamespaceAndPath("touhou_little_maid", "fishing");
     /** 硬性工具：可抛竿的钓鱼竿，主手或背包存在即可（装备动作由 {@link MaidHardToolService} 完成）。 */
     public static final HardToolRequirement REQUIRED_TOOL = new HardToolRequirement(
-            "fishing_rod", stack -> stack.canPerformAction(ToolActions.FISHING_ROD_CAST));
+            "fishing_rod", stack -> stack.canPerformAction(ItemAbilities.FISHING_ROD_CAST));
     private static final int WATER_SEARCH_RANGE = 6;
     private static final int WATER_VERTICAL_RANGE = 3;
     private static final double SIT_CLOSE_ENOUGH_SQR = 4.0D;

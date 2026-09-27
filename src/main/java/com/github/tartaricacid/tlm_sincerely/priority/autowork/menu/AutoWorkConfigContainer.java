@@ -2,14 +2,14 @@ package com.github.tartaricacid.tlm_sincerely.priority.autowork.menu;
 
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import com.github.tartaricacid.touhoulittlemaid.inventory.container.task.TaskConfigContainer;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.MenuType;
-import net.minecraftforge.common.extensions.IForgeMenuType;
+import net.neoforged.neoforge.common.extensions.IMenuTypeExtension;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -27,8 +27,8 @@ import org.jetbrains.annotations.Nullable;
  * and the client-side factory read by {@link #TYPE} decodes it.
  */
 public class AutoWorkConfigContainer extends TaskConfigContainer {
-    public static final MenuType<AutoWorkConfigContainer> TYPE = IForgeMenuType.create(
-            (int windowId, Inventory inv, FriendlyByteBuf data) ->
+    public static final MenuType<AutoWorkConfigContainer> TYPE = IMenuTypeExtension.create(
+            (int windowId, Inventory inv, RegistryFriendlyByteBuf data) ->
                     new AutoWorkConfigContainer(windowId, inv, data.readInt()));
 
     public AutoWorkConfigContainer(int id, Inventory inventory, int entityId) {
@@ -38,7 +38,7 @@ public class AutoWorkConfigContainer extends TaskConfigContainer {
     /**
      * Returns a {@link MenuProvider} that opens this container for the
      * maid with the given entity id. Used by
-     * {@code NetworkHooks.openScreen(serverPlayer, provider, buf -> buf.writeInt(entityId))}.
+     * {@code serverPlayer.openMenu(provider, buf -> buf.writeInt(entityId))}.
      */
     public static MenuProvider createProvider(int entityId) {
         return new MenuProvider() {
@@ -50,6 +50,11 @@ public class AutoWorkConfigContainer extends TaskConfigContainer {
             @Override
             public AbstractContainerMenu createMenu(int index, Inventory playerInventory, Player player) {
                 return new AutoWorkConfigContainer(index, playerInventory, entityId);
+            }
+
+            @Override
+            public boolean shouldTriggerClientSideContainerClosingOnOpen() {
+                return false;
             }
         };
     }

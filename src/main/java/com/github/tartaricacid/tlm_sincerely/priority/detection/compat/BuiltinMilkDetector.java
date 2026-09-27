@@ -13,7 +13,7 @@ import net.minecraft.world.entity.ai.memory.NearestVisibleLivingEntities;
 import net.minecraft.world.entity.animal.Cow;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraftforge.items.IItemHandler;
+import net.neoforged.neoforge.items.IItemHandler;
 
 import java.util.List;
 import java.util.Optional;
@@ -26,7 +26,7 @@ import java.util.Optional;
  * calls ItemsUtil (would trigger MaidRequestItemEvent).
  */
 public final class BuiltinMilkDetector implements TaskWorkDetector {
-    public static final ResourceLocation UID = new ResourceLocation("touhou_little_maid", "milk");
+    public static final ResourceLocation UID = ResourceLocation.fromNamespaceAndPath("touhou_little_maid", "milk");
     private static final int CLOSE_ENOUGH_DIST = 2;
     private static final double CLOSE_ENOUGH_SQR = CLOSE_ENOUGH_DIST * CLOSE_ENOUGH_DIST;
 

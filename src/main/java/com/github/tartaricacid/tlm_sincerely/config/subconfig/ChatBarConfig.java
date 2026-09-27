@@ -1,15 +1,15 @@
 package com.github.tartaricacid.tlm_sincerely.config.subconfig;
 
-import net.minecraftforge.common.ForgeConfigSpec;
+import net.neoforged.neoforge.common.ModConfigSpec;
 
 public final class ChatBarConfig {
-    public static ForgeConfigSpec.BooleanValue CHAT_MODE;
-    public static ForgeConfigSpec.BooleanValue GLOBAL_VISIBLE;
-    public static ForgeConfigSpec.BooleanValue REQUIRE_PREFIX;
-    public static ForgeConfigSpec.DoubleValue AUTO_CHAT_RANGE;
-    public static ForgeConfigSpec.ConfigValue<String> PREFIX_PATTERN;
+    public static ModConfigSpec.BooleanValue CHAT_MODE;
+    public static ModConfigSpec.BooleanValue GLOBAL_VISIBLE;
+    public static ModConfigSpec.BooleanValue REQUIRE_PREFIX;
+    public static ModConfigSpec.DoubleValue AUTO_CHAT_RANGE;
+    public static ModConfigSpec.ConfigValue<String> PREFIX_PATTERN;
 
-    public static void init(ForgeConfigSpec.Builder builder) {
+    public static void init(ModConfigSpec.Builder builder) {
         builder.push("chatbar");
 
         builder.comment("Chat with maid mode (button toggle state, enabled by default)");

@@ -15,9 +15,9 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.registries.RegistryObject;
+import net.neoforged.neoforge.capabilities.Capabilities;
+import net.neoforged.neoforge.items.IItemHandler;
+import net.neoforged.neoforge.registries.DeferredHolder;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -53,7 +53,7 @@ import java.util.Set;
  * budgeted.
  */
 public final class MaidStorageManagerDetector implements TaskWorkDetector {
-    public static final ResourceLocation UID = new ResourceLocation("maid_storage_manager", "storage_manage");
+    public static final ResourceLocation UID = ResourceLocation.fromNamespaceAndPath("maid_storage_manager", "storage_manage");
     private static final int STORAGE_VERTICAL_RANGE = 3;
     private static final int NON_HOME_HORIZONTAL_RANGE = 7;
     private static final int MAX_BOUND_STORAGE_CHECKS = 16;
@@ -264,7 +264,7 @@ public final class MaidStorageManagerDetector implements TaskWorkDetector {
         if (blockEntity == null) {
             return false;
         }
-        return blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER).isPresent();
+        return level.getCapability(Capabilities.ItemHandler.BLOCK, pos, blockEntity.getBlockState(), blockEntity, null) != null;
     }
 
     private static boolean isNearOwner(EntityMaid maid, BlockPos pos) {
@@ -346,7 +346,7 @@ public final class MaidStorageManagerDetector implements TaskWorkDetector {
             resortingTarget = readTargetMemory(maid, resortingField);
             try {
                 Object registryObject = requestListItemField.get(null);
-                if (registryObject instanceof RegistryObject<?> registry) {
+                if (registryObject instanceof DeferredHolder<?, ?> registry) {
                     Object item = registry.get();
                     requestListItem = item instanceof Item ? (Item) item : null;
                 }
@@ -364,7 +364,7 @@ public final class MaidStorageManagerDetector implements TaskWorkDetector {
             }
             try {
                 Object baubleRegistry = storageDefineBaubleField.get(null);
-                if (!(baubleRegistry instanceof RegistryObject<?> registry)) {
+                if (!(baubleRegistry instanceof DeferredHolder<?, ?> registry)) {
                     return List.of();
                 }
                 Object baubleItemObj = registry.get();
@@ -455,7 +455,7 @@ public final class MaidStorageManagerDetector implements TaskWorkDetector {
         private static Object readMemory(EntityMaid maid, Field moduleField)
                 throws ReflectiveOperationException {
             Object moduleObject = moduleField.get(null);
-            if (!(moduleObject instanceof RegistryObject<?> registry)) {
+            if (!(moduleObject instanceof DeferredHolder<?, ?> registry)) {
                 return null;
             }
             Object moduleType = registry.get();

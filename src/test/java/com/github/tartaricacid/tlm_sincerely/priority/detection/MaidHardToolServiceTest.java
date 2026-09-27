@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class MaidHardToolServiceTest {
     @Test
     void register_andGetRequirement() {
-        ResourceLocation task = new ResourceLocation("test", "task");
+        ResourceLocation task = ResourceLocation.fromNamespaceAndPath("test", "task");
         HardToolRequirement req = new HardToolRequirement("fishing_rod", stack -> stack.is(Items.FISHING_ROD));
         MaidHardToolService.register(task, req);
         assertEquals(req, MaidHardToolService.getRequirement(task));
@@ -20,7 +20,7 @@ class MaidHardToolServiceTest {
 
     @Test
     void reRegister_overwritesPrevious() {
-        ResourceLocation task = new ResourceLocation("test", "task");
+        ResourceLocation task = ResourceLocation.fromNamespaceAndPath("test", "task");
         HardToolRequirement req1 = new HardToolRequirement("fishing_rod", stack -> stack.is(Items.FISHING_ROD));
         HardToolRequirement req2 = new HardToolRequirement("shears", stack -> stack.is(Items.SHEARS));
         MaidHardToolService.register(task, req1);

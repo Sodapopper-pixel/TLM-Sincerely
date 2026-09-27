@@ -17,10 +17,10 @@ import net.minecraft.resources.ResourceLocation;
  */
 public final class AutoWorkMaidTabButton extends
         com.github.tartaricacid.touhoulittlemaid.client.gui.widget.button.MaidTabButton {
-    private static final ResourceLocation TLM_TAB_TEXTURE = new ResourceLocation(
+    private static final ResourceLocation TLM_TAB_TEXTURE = ResourceLocation.fromNamespaceAndPath(
             "touhou_little_maid", "textures/gui/maid_gui_side.png");
     private static final ResourceLocation AUTO_WORK_ICON_TEXTURE =
-            new ResourceLocation("tlm_sincerely", "textures/gui/maid_gui_sincerely.png");
+            ResourceLocation.fromNamespaceAndPath("tlm_sincerely", "textures/gui/maid_gui_sincerely.png");
 
     private static final int TAB_WIDTH = 24;
     private static final int TAB_HEIGHT = 26;

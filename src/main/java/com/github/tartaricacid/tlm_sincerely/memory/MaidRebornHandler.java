@@ -1,10 +1,14 @@
 package com.github.tartaricacid.tlm_sincerely.memory;
 
 import com.github.tartaricacid.touhoulittlemaid.api.event.MaidAndItemTransformEvent;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
+import com.mojang.serialization.JsonOps;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.minecraft.network.chat.ComponentSerialization;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -19,7 +23,7 @@ import java.util.UUID;
  * </ol>
  * 祭坛配方路径不抛此事件，暂不覆盖。
  */
-@Mod.EventBusSubscriber
+@EventBusSubscriber
 public final class MaidRebornHandler {
     private static final Logger LOGGER = LogManager.getLogger("TLM_Sincerely/Reborn");
 
@@ -50,7 +54,10 @@ public final class MaidRebornHandler {
             String customName = data.getString("CustomName");
             if (!customName.isEmpty()) {
                 try {
-                    Component name = Component.Serializer.fromJson(customName);
+                    // 1.21 移除了旧版 Component 反序列化入口，改用 ComponentSerialization.CODEC + JsonOps；
+                    // getOrThrow 让解析失败抛异常，走下方 catch 的兜底 warn，与原语义一致。
+                    JsonElement json = JsonParser.parseString(customName);
+                    Component name = ComponentSerialization.CODEC.parse(JsonOps.INSTANCE, json).getOrThrow();
                     if (name != null) {
                         event.getMaid().setCustomName(name);
                         event.getMaid().setCustomNameVisible(true);

@@ -14,7 +14,6 @@ import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.PacketDistributor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -149,9 +148,7 @@ public final class AutoWorkPushService {
         for (AutoWorkPreset preset : offer.presets) {
             payload.add(AutoWorkPresetData.from(preset));
         }
-        AutoWorkNetworking.channel().send(
-                PacketDistributor.PLAYER.with(() -> target),
-                new AutoWorkPushApplyS2CPacket(payload));
+        AutoWorkNetworking.sendToPlayer(target, new AutoWorkPushApplyS2CPacket(payload));
         notifySender(offer, "command.tlm_sincerely.autowork.push.success", ChatFormatting.GREEN);
         LOGGER.info("[AutoWorkPush] {} accepted push from {} ({} presets)",
                 target.getName().getString(), offer.senderName, offer.presets.size());

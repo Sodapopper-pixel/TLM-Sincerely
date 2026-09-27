@@ -1,5 +1,6 @@
 package com.github.tartaricacid.tlm_sincerely;
 
+import com.github.tartaricacid.tlm_sincerely.client.ClientSetupHooks;
 import com.github.tartaricacid.tlm_sincerely.command.AutoWorkCompatCommand;
 import com.github.tartaricacid.tlm_sincerely.command.AutoWorkPresetCommand;
 import com.github.tartaricacid.tlm_sincerely.command.ChatCommand;
@@ -19,44 +20,51 @@ import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkS
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.push.AutoWorkPushService;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.compat.CompatDetectorBootstrap;
 import com.github.tartaricacid.tlm_sincerely.priority.TaskAutoSwitchHandler;
+import net.minecraft.commands.synchronization.ArgumentTypeInfo;
 import net.minecraft.commands.synchronization.ArgumentTypeInfos;
 import net.minecraft.commands.synchronization.SingletonArgumentInfo;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.entity.player.PlayerEvent;
-import net.minecraftforge.event.server.ServerStartedEvent;
-import net.minecraftforge.event.server.ServerStoppedEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.ModLoadingContext;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.config.ModConfig;
-import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import net.minecraftforge.fml.common.Mod;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.neoforged.fml.loading.FMLEnvironment;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import net.neoforged.fml.config.ModConfig;
+import net.neoforged.neoforge.registries.DeferredRegister;
+
+import java.util.function.Supplier;
 
 @Mod(SincerelyExtension.MOD_ID)
 public class SincerelyMod {
     private static boolean configRegistered = false;
-    private static boolean argumentTypesRegistered = false;
 
-    public SincerelyMod() {
-        registerArgumentTypes();
-        MinecraftForge.EVENT_BUS.register(this);
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::onCommonSetup);
-        AutoWorkMenus.register(FMLJavaModLoadingContext.get().getModEventBus());
+    public SincerelyMod(IEventBus modEventBus, ModContainer container) {
+        NeoForge.EVENT_BUS.register(this);
+        modEventBus.addListener(this::onCommonSetup);
+        AutoWorkMenus.register(modEventBus);
+        AutoWorkNetworking.register(modEventBus);
+        COMMAND_ARGUMENT_TYPES.register(modEventBus);
         if (!configRegistered) {
             configRegistered = true;
-            ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, GeneralConfig.init());
-            DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-                    () -> () -> com.github.tartaricacid.tlm_sincerely.client.gui.ConfigScreen.register());
+            container.registerConfig(ModConfig.Type.COMMON, GeneralConfig.init());
+            if (FMLEnvironment.dist == Dist.CLIENT) {
+                ClientSetupHooks.registerConfigScreen(container);
+            }
         }
     }
 
-    @SubscribeEvent
+    // FMLCommonSetupEvent 是 mod 总线事件，经构造器里的 modEventBus.addListener 注册；
+    // 不能加 @SubscribeEvent（本类被 NeoForge.EVENT_BUS.register(this) 整体注册到 GAME 总线，
+    // NeoForge 21.1 对错总线的监听器直接抛 IllegalArgumentException）。
     public void onCommonSetup(FMLCommonSetupEvent event) {
-        AutoWorkNetworking.register();
         CompatDetectorBootstrap.register();
     }
 
@@ -70,22 +78,20 @@ public class SincerelyMod {
     }
 
     @SubscribeEvent
-    public void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase == TickEvent.Phase.END) {
-            MemoryMaintenanceManager.onServerTick(event.getServer());
-            AutoWorkCompatService compatService = AutoWorkCompatService.getOrNull(event.getServer());
-            if (compatService != null) {
-                compatService.onServerTick();
-            }
-            CommandConfirmationService confirmationService =
-                    CommandConfirmationService.getOrNull(event.getServer());
-            if (confirmationService != null) {
-                confirmationService.onServerTick();
-            }
-            AutoWorkPushService pushService = AutoWorkPushService.getOrNull(event.getServer());
-            if (pushService != null) {
-                pushService.onServerTick();
-            }
+    public void onServerTick(ServerTickEvent.Post event) {
+        MemoryMaintenanceManager.onServerTick(event.getServer());
+        AutoWorkCompatService compatService = AutoWorkCompatService.getOrNull(event.getServer());
+        if (compatService != null) {
+            compatService.onServerTick();
+        }
+        CommandConfirmationService confirmationService =
+                CommandConfirmationService.getOrNull(event.getServer());
+        if (confirmationService != null) {
+            confirmationService.onServerTick();
+        }
+        AutoWorkPushService pushService = AutoWorkPushService.getOrNull(event.getServer());
+        if (pushService != null) {
+            pushService.onServerTick();
         }
     }
 
@@ -136,14 +142,20 @@ public class SincerelyMod {
         }
     }
 
-    private static void registerArgumentTypes() {
-        if (argumentTypesRegistered) {
-            return;
-        }
-        argumentTypesRegistered = true;
-        ArgumentTypeInfos.registerByClass(
-                UnicodeWordArgument.class,
-                SingletonArgumentInfo.contextFree(() -> UnicodeWordArgument.word(""))
-        );
-    }
+    /**
+     * 1.21.1 命令树包按 {@code COMMAND_ARGUMENT_TYPE} registry id 编解码：
+     * 只调 {@link ArgumentTypeInfos#registerByClass}（仅填 BY_CLASS map）会导致序列化写出
+     * id=-1、客户端按 id 反查得到 null 节点、字节流错位（进存档时
+     * {@code Failed to decode packet 'clientbound/minecraft:commands'}）。
+     * 必须经 DeferredRegister 注册进 registry，并在 supplier 里同时回填 BY_CLASS。
+     */
+    public static final DeferredRegister<ArgumentTypeInfo<?, ?>> COMMAND_ARGUMENT_TYPES =
+            DeferredRegister.create(BuiltInRegistries.COMMAND_ARGUMENT_TYPE, SincerelyExtension.MOD_ID);
+
+    public static final Supplier<SingletonArgumentInfo<UnicodeWordArgument>> UNICODE_WORD_INFO =
+            COMMAND_ARGUMENT_TYPES.register("unicode_word", () ->
+                    ArgumentTypeInfos.registerByClass(
+                            UnicodeWordArgument.class,
+                            SingletonArgumentInfo.contextFree(() -> UnicodeWordArgument.word(""))
+                    ));
 }

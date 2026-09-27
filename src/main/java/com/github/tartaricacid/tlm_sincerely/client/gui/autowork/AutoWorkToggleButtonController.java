@@ -4,13 +4,12 @@ import com.github.tartaricacid.tlm_sincerely.SincerelyExtension;
 import com.github.tartaricacid.tlm_sincerely.client.network.ClientAutoWorkService;
 import com.github.tartaricacid.touhoulittlemaid.api.event.client.MaidContainerGuiEvent;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
 
 /** Adds the per-maid auto-work toggle below the portrait without touching TLM's task list. */
-@Mod.EventBusSubscriber(modid = SincerelyExtension.MOD_ID,
-        bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
+@EventBusSubscriber(modid = SincerelyExtension.MOD_ID, value = Dist.CLIENT)
 public final class AutoWorkToggleButtonController {
     private AutoWorkToggleButtonController() {
     }

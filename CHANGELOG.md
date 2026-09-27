@@ -8,6 +8,14 @@
 
 ## [Unreleased]
 
+### 变更
+
+- **平台迁移至 Minecraft 1.21.1 / NeoForge 21.1.x（Java 21）**：主模组依赖为 Touhou Little Maid `1.5.3-neoforge+mc1.21.1`，Cloth Config API 升至 15.x；1.20.1 Forge 版本由 `main` 分支继续维护。
+
+### 修复
+
+- **首次在新环境启动时加载损坏**：列表型配置项（`PreviewMode`）在首次生成 `tlm_sincerely-common.toml` 时会触发 `NullPointerException` 且不被 FML 记录，导致模组加载进入损坏状态——表现为按键、界面等未注册，游戏内一点鼠标即崩溃且报错指向其他模组（如 Quark）。已修复默认值列表的可变性；已受影响的环境删除旧 `tlm_sincerely-common.toml` 后重新启动即可。
+
 ## [0.2.0-beta] - 2026-09-18
 
 ### 新增

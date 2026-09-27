@@ -5,14 +5,13 @@ import com.github.tartaricacid.tlm_sincerely.config.subconfig.ChatBarConfig;
 import com.github.tartaricacid.tlm_sincerely.config.subconfig.PriorityConfig;
 import com.github.tartaricacid.touhoulittlemaid.api.event.client.AddClothConfigEvent;
 import com.mojang.logging.LogUtils;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
 import org.slf4j.Logger;
 
 /** Adds TLM-Sincerely's categories to Touhou Little Maid's Cloth Config page. */
-@Mod.EventBusSubscriber(modid = SincerelyExtension.MOD_ID, value = Dist.CLIENT,
-        bus = Mod.EventBusSubscriber.Bus.FORGE)
+@EventBusSubscriber(modid = SincerelyExtension.MOD_ID, value = Dist.CLIENT)
 public final class TlmConfigIntegration {
     private static final Logger LOGGER = LogUtils.getLogger();
 

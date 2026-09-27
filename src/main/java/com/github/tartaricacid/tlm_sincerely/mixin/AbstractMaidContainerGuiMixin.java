@@ -1,6 +1,6 @@
 package com.github.tartaricacid.tlm_sincerely.mixin;
 
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkNetworking;
+
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.SetMaidAutoWorkC2SPacket;
 import com.github.tartaricacid.touhoulittlemaid.api.task.IMaidTask;
 import com.github.tartaricacid.touhoulittlemaid.client.gui.entity.maid.AbstractMaidContainerGui;
@@ -62,7 +62,7 @@ public abstract class AbstractMaidContainerGuiMixin {
         if (!isSelect || this.maid == null) {
             return;
         }
-        AutoWorkNetworking.channel().sendToServer(
+        net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                 new SetMaidAutoWorkC2SPacket(maid.getUUID(), false));
     }
 

@@ -1,31 +1,46 @@
 package com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets;
 
-import com.github.tartaricacid.tlm_sincerely.client.network.ClientAutoWorkService;
+import com.github.tartaricacid.tlm_sincerely.SincerelyExtension;
+import com.github.tartaricacid.tlm_sincerely.client.network.AutoWorkClientPayloadHandlers;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkSnapshot;
+import io.netty.buffer.ByteBuf;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.function.Supplier;
 
 /**
  * S2C snapshot carrying the server-authoritative maid state (bound snapshots
  * and compat entries). The client library is local and never sent here.
  */
-public final class AutoWorkSnapshotS2CPacket {
-    public static final int INDEX = 0;
+public record AutoWorkSnapshotS2CPacket(AutoWorkSnapshot snapshot) implements CustomPacketPayload {
+    public static final Type<AutoWorkSnapshotS2CPacket> TYPE = new Type<>(
+            ResourceLocation.fromNamespaceAndPath(SincerelyExtension.MOD_ID, "auto_work/snapshot"));
+
     private static final int MAX_COMPAT_ENTRIES = 4096;
     private static final int MAX_MAIDS = 8192;
     private static final int MAX_ORDER = 512;
-    private final AutoWorkSnapshot snapshot;
 
-    public AutoWorkSnapshotS2CPacket(AutoWorkSnapshot snapshot) {
-        this.snapshot = snapshot;
+    public static final StreamCodec<ByteBuf, AutoWorkSnapshotS2CPacket> STREAM_CODEC = new StreamCodec<>() {
+        @Override
+        public AutoWorkSnapshotS2CPacket decode(ByteBuf buf) {
+            return AutoWorkSnapshotS2CPacket.decode(new FriendlyByteBuf(buf));
+        }
+
+        @Override
+        public void encode(ByteBuf buf, AutoWorkSnapshotS2CPacket msg) {
+            AutoWorkSnapshotS2CPacket.encode(msg, new FriendlyByteBuf(buf));
+        }
+    };
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 
     public static void encode(AutoWorkSnapshotS2CPacket msg, FriendlyByteBuf buf) {
@@ -101,18 +116,14 @@ public final class AutoWorkSnapshotS2CPacket {
         );
     }
 
-    public static void handle(AutoWorkSnapshotS2CPacket msg, Supplier<NetworkEvent.Context> ctx) {
-        // S2C packets run on the network thread; the client cache is
-        // safe to mutate from any thread because all consumers read it
-        // from the main client thread. We dispatch via DistExecutor to
-        // avoid a class-not-found if a server-only build accidentally
-        // touches the client cache reference.
-        ctx.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-                () -> () -> ClientAutoWorkService.get().accept(msg.snapshot)));
-        ctx.get().setPacketHandled(true);
-    }
-
-    public AutoWorkSnapshot snapshot() {
-        return snapshot;
+    public static void handle(AutoWorkSnapshotS2CPacket msg, IPayloadContext context) {
+        // S2C packets run on the client main thread (registrar default); the
+        // client cache is safe to mutate there because all consumers read it
+        // from the main client thread. The flow guard keeps a stray server
+        // call from resolving the client-only handler class; on a dedicated
+        // server this method is never invoked, so the reference stays lazy.
+        if (context.flow().isClientbound()) {
+            AutoWorkClientPayloadHandlers.handleSnapshot(msg);
+        }
     }
 }

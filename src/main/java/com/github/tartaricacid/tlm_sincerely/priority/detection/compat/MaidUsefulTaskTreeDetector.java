@@ -47,7 +47,7 @@ import java.util.List;
  * through {@link DetectionContext}.
  */
 public final class MaidUsefulTaskTreeDetector implements TaskWorkDetector {
-    public static final ResourceLocation UID = new ResourceLocation("maid_useful_task", "maid_tree");
+    public static final ResourceLocation UID = ResourceLocation.fromNamespaceAndPath("maid_useful_task", "maid_tree");
     private static final int TREE_VERTICAL_RANGE = 7;
     private static final int NON_HOME_HORIZONTAL_RANGE = 7;
 

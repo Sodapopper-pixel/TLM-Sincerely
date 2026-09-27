@@ -1,11 +1,11 @@
 # 车万女仆：真心为你  TLM-sincerely
 
-[![Minecraft](https://img.shields.io/badge/Minecraft-1.20.1-62B47A?style=flat-square)](https://www.minecraft.net/)
-[![Forge](https://img.shields.io/badge/Forge-47.x-E04E14?style=flat-square)](https://files.minecraftforge.net/)
-[![Java](https://img.shields.io/badge/Java-17-ED8B00?style=flat-square)](https://adoptium.net/)
+[![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-62B47A?style=flat-square)](https://www.minecraft.net/)
+[![NeoForge](https://img.shields.io/badge/NeoForge-21.1.x-F16436?style=flat-square)](https://neoforged.net/)
+[![Java](https://img.shields.io/badge/Java-21-ED8B00?style=flat-square)](https://adoptium.net/)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
 
-《车万女仆：真心为你》是 [Touhou Little Maid / 车万女仆](https://www.curseforge.com/minecraft/mc-mods/touhou-little-maid) 的 Forge 1.20.1 附属模组，围绕女仆对话、工作调度和长期记忆提供增强功能。
+《车万女仆：真心为你》是 [Touhou Little Maid / 车万女仆](https://www.curseforge.com/minecraft/mc-mods/touhou-little-maid) 的 NeoForge 1.21.1 附属模组，围绕女仆对话、工作调度和长期记忆提供增强功能。（1.20.1 Forge 版本由 `main` 分支维护）
 目前实现了：
 - 在聊天栏中与女仆agent进行对话
 - **核心功能**工作模式自动切换模式
@@ -16,7 +16,7 @@
 
 ## 未来todo（画饼）
 
-[] 迁移至1.21.1
+[] 迁移至1.21.1（已完成，本分支）
 [] 增加玩家视角截图功能，也可能是增加相机物品，可将截图内容发送给支持视觉的女仆agent
 [] 新增物品“日记本”，绑定女仆，用于 GUI 化管理女仆的记忆
 [] 新增物品“翻盖机”，绑定女仆，可唤起带输入框的聊天界面，与女仆agent沉浸式聊天
@@ -31,11 +31,11 @@
 
 | 项目 | 要求 |
 |---|---|
-| Minecraft | 1.20.1 |
-| Mod Loader | Forge 47.x，开发环境使用 47.4.0 |
-| Java | 17 |
-| Touhou Little Maid | 1.5.3 |
-| Cloth Config API | 11.x，开发环境使用 11.1.136 |
+| Minecraft | 1.21.1 |
+| Mod Loader | NeoForge 21.1.x，开发环境使用 21.1.248 |
+| Java | 21 |
+| Touhou Little Maid | 1.5.3-neoforge+mc1.21.1 |
+| Cloth Config API | 15.x，开发环境使用 15.0.140 |
 
 ## 功能
 
@@ -90,7 +90,7 @@
 
 ## 构建
 
-需要 Java 17：
+需要 Java 21：
 
 ```powershell
 .\gradlew.bat build --no-daemon
@@ -99,7 +99,7 @@
 构建产物位于：
 
 ```text
-build/libs/tlm_sincerely-1.20.1-forge-0.2.0-beta.jar
+build/libs/tlm_sincerely-1.21.1-neoforge-0.2.0-beta.jar
 ```
 
 开发环境可使用：

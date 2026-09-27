@@ -14,9 +14,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.BeehiveBlock;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.common.ToolActions;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.ItemHandlerHelper;
+import net.neoforged.neoforge.common.ItemAbilities;
+import net.neoforged.neoforge.items.IItemHandler;
+import net.neoforged.neoforge.items.ItemHandlerHelper;
 
 import java.util.Comparator;
 import java.util.List;
@@ -29,7 +29,7 @@ import java.util.List;
  * validated with insertItemStacked(simulate=true) only. Never calls ItemsUtil.
  */
 public final class BuiltinHoneyDetector implements TaskWorkDetector {
-    public static final ResourceLocation UID = new ResourceLocation("touhou_little_maid", "honey");
+    public static final ResourceLocation UID = ResourceLocation.fromNamespaceAndPath("touhou_little_maid", "honey");
     private static final int CLOSE_ENOUGH_DIST = 2;
     private static final double CLOSE_ENOUGH_SQR = CLOSE_ENOUGH_DIST * CLOSE_ENOUGH_DIST;
 
@@ -48,7 +48,7 @@ public final class BuiltinHoneyDetector implements TaskWorkDetector {
         if (maid.getVehicle() == null && !maid.canBrainMoving()) {
             return unavailable(context, task, "MAID_NOT_MOVABLE");
         }
-        boolean hasShears = maid.getMainHandItem().canPerformAction(ToolActions.SHEARS_HARVEST);
+        boolean hasShears = maid.getMainHandItem().canPerformAction(ItemAbilities.SHEARS_HARVEST);
         boolean hasBottle = hasStack(maid.getAvailableInv(false), Items.GLASS_BOTTLE);
         if (!hasShears && !hasBottle) {
             return unavailable(context, task, "NO_BOTTLE_OR_SHEARS");

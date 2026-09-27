@@ -16,8 +16,9 @@ import net.minecraft.world.item.CrossbowItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TridentItem;
 import net.minecraft.world.phys.AABB;
-import net.minecraftforge.items.IItemHandler;
+import net.neoforged.neoforge.items.IItemHandler;
 
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 /**
@@ -30,19 +31,37 @@ import java.util.function.Predicate;
  * third-party {@link IAttackTask}s keep their own {@code isWeapon} contract.
  */
 public final class AttackTaskWorkDetector implements TaskWorkDetector {
-    public static final ResourceLocation UID_ATTACK = new ResourceLocation("touhou_little_maid", "attack");
-    public static final ResourceLocation UID_RANGED = new ResourceLocation("touhou_little_maid", "ranged_attack");
-    public static final ResourceLocation UID_CROSSBOW = new ResourceLocation("touhou_little_maid", "crossbow_attack");
-    public static final ResourceLocation UID_TRIDENT = new ResourceLocation("touhou_little_maid", "trident_attack");
-    public static final ResourceLocation UID_DANMAKU = new ResourceLocation("touhou_little_maid", "danmaku_attack");
+    public static final ResourceLocation UID_ATTACK = ResourceLocation.fromNamespaceAndPath("touhou_little_maid", "attack");
+    public static final ResourceLocation UID_RANGED = ResourceLocation.fromNamespaceAndPath("touhou_little_maid", "ranged_attack");
+    public static final ResourceLocation UID_CROSSBOW = ResourceLocation.fromNamespaceAndPath("touhou_little_maid", "crossbow_attack");
+    public static final ResourceLocation UID_TRIDENT = ResourceLocation.fromNamespaceAndPath("touhou_little_maid", "trident_attack");
+    public static final ResourceLocation UID_DANMAKU = ResourceLocation.fromNamespaceAndPath("touhou_little_maid", "danmaku_attack");
 
     /** 近战武器：主手 ATTACK_DAMAGE，且排除弓/弩/三叉戟/御币。 */
     public static final HardToolRequirement MELEE_WEAPON = new HardToolRequirement("attack_weapon",
-            stack -> stack.getAttributeModifiers(EquipmentSlot.MAINHAND).containsKey(Attributes.ATTACK_DAMAGE)
+            stack -> hasMainHandAttackDamage(stack)
                     && !(stack.getItem() instanceof BowItem)
                     && !(stack.getItem() instanceof CrossbowItem)
                     && !(stack.getItem() instanceof TridentItem)
                     && !ItemHakureiGohei.isGohei(stack));
+
+    /**
+     * 1.21.1 removed the per-slot {@code getAttributeModifiers} map; the slot query
+     * now goes through {@link ItemStack#forEachModifier(EquipmentSlot, BiConsumer)},
+     * which walks item-intrinsic modifiers, the ATTRIBUTE_MODIFIERS component and
+     * enchantments for that slot — a conservative superset of the old
+     * {@code getAttributeModifiers(MAINHAND).containsKey(ATTACK_DAMAGE)} check.
+     */
+    public static boolean hasMainHandAttackDamage(ItemStack stack) {
+        boolean[] found = {false};
+        stack.forEachModifier(EquipmentSlot.MAINHAND, (attribute, modifier) -> {
+            // is(Holder) is deprecated in 1.21.1; key comparison is the supported form.
+            if (attribute.is(Attributes.ATTACK_DAMAGE.getKey())) {
+                found[0] = true;
+            }
+        });
+        return found[0];
+    }
 
     public static final HardToolRequirement BOW_WEAPON = new HardToolRequirement(
             "ranged_weapon", stack -> stack.getItem() instanceof BowItem);

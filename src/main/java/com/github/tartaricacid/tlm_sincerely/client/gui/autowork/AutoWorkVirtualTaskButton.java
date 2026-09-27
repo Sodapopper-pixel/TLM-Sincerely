@@ -2,7 +2,6 @@ package com.github.tartaricacid.tlm_sincerely.client.gui.autowork;
 
 import com.github.tartaricacid.tlm_sincerely.client.network.ClientAutoWorkService;
 import com.github.tartaricacid.tlm_sincerely.config.subconfig.PriorityConfig;
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkNetworking;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkSnapshot;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.SetMaidAutoWorkC2SPacket;
 import com.mojang.logging.LogUtils;
@@ -14,6 +13,7 @@ import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.network.PacketDistributor;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
@@ -40,7 +40,7 @@ import java.util.UUID;
 public final class AutoWorkVirtualTaskButton extends AbstractWidget {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final ResourceLocation TASK_TEXTURE =
-            new ResourceLocation("tlm_sincerely", "textures/gui/maid_gui_sincerely.png");
+            ResourceLocation.fromNamespaceAndPath("tlm_sincerely", "textures/gui/maid_gui_sincerely.png");
     private static final int TEXTURE_SIZE = 256;
 
     /** Source U is fixed; only V changes per state. */
@@ -77,7 +77,7 @@ public final class AutoWorkVirtualTaskButton extends AbstractWidget {
         Optional<AutoWorkSnapshot.MaidEntry> entry =
                 ClientAutoWorkService.get().findMaid(maidId);
         boolean current = entry.map(AutoWorkSnapshot.MaidEntry::enabled).orElse(false);
-        AutoWorkNetworking.channel().sendToServer(
+        PacketDistributor.sendToServer(
                 new SetMaidAutoWorkC2SPacket(maidId, !current));
         setFocused(false);
         LOGGER.debug("Sent auto-work toggle: maid={}, beforeEnabled={}, hovered={}", maidId, current, isHovered());

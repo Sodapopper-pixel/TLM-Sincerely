@@ -8,13 +8,15 @@ import com.github.tartaricacid.tlm_sincerely.priority.detection.TaskWorkDetector
 import com.github.tartaricacid.touhoulittlemaid.api.task.IMaidTask;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.items.IItemHandler;
+import net.neoforged.neoforge.items.IItemHandler;
 
 import java.util.List;
 
@@ -30,7 +32,7 @@ import java.util.List;
  * {@code i < searchRange} loop by using {@code restrictRadius - 1}.
  */
 public final class BuiltinTorchDetector implements TaskWorkDetector {
-    public static final ResourceLocation UID = new ResourceLocation("touhou_little_maid", "torch");
+    public static final ResourceLocation UID = ResourceLocation.fromNamespaceAndPath("touhou_little_maid", "torch");
     private static final int LOW_BRIGHTNESS = 9;
     private static final int TORCH_VERTICAL_RANGE = 2;
 
@@ -83,7 +85,9 @@ public final class BuiltinTorchDetector implements TaskWorkDetector {
                 continue;
             }
             BlockState stateUp = level.getBlockState(posUp);
-            if (!Blocks.TORCH.canSurvive(stateUp, level, posUp) || stateUp.liquid()) {
+            // 1.21.1: BlockBehaviour.canSurvive 仍为 protected（且不能 AT，子类 protected 覆写会炸），
+            // 这里用公开 API 复刻 BaseTorchBlock.canSurvive 的实现（字节码核实等价）。
+            if (!Block.canSupportCenter(level, posUp.below(), Direction.UP) || stateUp.liquid()) {
                 cursor = nextCursor;
                 continue;
             }

@@ -1,28 +1,28 @@
 package com.github.tartaricacid.tlm_sincerely.config.subconfig;
 
-import net.minecraftforge.common.ForgeConfigSpec;
+import net.neoforged.neoforge.common.ModConfigSpec;
 
 public final class PriorityConfig {
-    public static ForgeConfigSpec.BooleanValue ENABLED;
-    public static ForgeConfigSpec.IntValue COOLDOWN;
-    public static ForgeConfigSpec.BooleanValue EXPERIMENTAL_ATTACK_PREEMPT;
-    public static ForgeConfigSpec.BooleanValue FORCE_ENABLE_PRESELECTED;
-    public static ForgeConfigSpec.BooleanValue DISABLE_COMPAT_REMINDER;
-    public static ForgeConfigSpec.BooleanValue FORCE_BRAIN_REFRESH_ON_STUCK;
-    public static ForgeConfigSpec.IntValue AVAILABLE_CONFIRMATIONS;
-    public static ForgeConfigSpec.IntValue UNAVAILABLE_CONFIRMATIONS;
-    public static ForgeConfigSpec.IntValue MINIMUM_TASK_HOLD_TICKS;
-    public static ForgeConfigSpec.IntValue REVERSE_SWITCH_WINDOW_TICKS;
-    public static ForgeConfigSpec.IntValue REVERSE_SWITCH_THRESHOLD;
-    public static ForgeConfigSpec.IntValue REVERSE_SWITCH_COOLDOWN_TICKS;
-    public static ForgeConfigSpec.BooleanValue BUSY_GUARD_ENABLED;
-    public static ForgeConfigSpec.IntValue BUSY_IDLE_FORGIVE_TICKS;
-    public static ForgeConfigSpec.IntValue BUSY_UNAVAILABLE_HOLD_TICKS;
-    public static ForgeConfigSpec.IntValue BUSY_GUARD_MAX_TICKS;
-    public static ForgeConfigSpec.IntValue DETECTION_BLOCK_BUDGET_PER_TICK;
-    public static ForgeConfigSpec.IntValue PATH_CHECK_BUDGET_PER_TICK;
+    public static ModConfigSpec.BooleanValue ENABLED;
+    public static ModConfigSpec.IntValue COOLDOWN;
+    public static ModConfigSpec.BooleanValue EXPERIMENTAL_ATTACK_PREEMPT;
+    public static ModConfigSpec.BooleanValue FORCE_ENABLE_PRESELECTED;
+    public static ModConfigSpec.BooleanValue DISABLE_COMPAT_REMINDER;
+    public static ModConfigSpec.BooleanValue FORCE_BRAIN_REFRESH_ON_STUCK;
+    public static ModConfigSpec.IntValue AVAILABLE_CONFIRMATIONS;
+    public static ModConfigSpec.IntValue UNAVAILABLE_CONFIRMATIONS;
+    public static ModConfigSpec.IntValue MINIMUM_TASK_HOLD_TICKS;
+    public static ModConfigSpec.IntValue REVERSE_SWITCH_WINDOW_TICKS;
+    public static ModConfigSpec.IntValue REVERSE_SWITCH_THRESHOLD;
+    public static ModConfigSpec.IntValue REVERSE_SWITCH_COOLDOWN_TICKS;
+    public static ModConfigSpec.BooleanValue BUSY_GUARD_ENABLED;
+    public static ModConfigSpec.IntValue BUSY_IDLE_FORGIVE_TICKS;
+    public static ModConfigSpec.IntValue BUSY_UNAVAILABLE_HOLD_TICKS;
+    public static ModConfigSpec.IntValue BUSY_GUARD_MAX_TICKS;
+    public static ModConfigSpec.IntValue DETECTION_BLOCK_BUDGET_PER_TICK;
+    public static ModConfigSpec.IntValue PATH_CHECK_BUDGET_PER_TICK;
 
-    public static void init(ForgeConfigSpec.Builder builder) {
+    public static void init(ModConfigSpec.Builder builder) {
         builder.push("multi_task");
 
         builder.comment(

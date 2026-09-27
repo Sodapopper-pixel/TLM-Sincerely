@@ -3,8 +3,6 @@ package com.github.tartaricacid.tlm_sincerely.client.autowork;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPreset;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPresetIO;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -26,7 +24,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * (see {@code docs/adr/0004-client-preset-library-and-maid-bound-snapshot.md}).
  * All access is expected from the client main thread.
  */
-@OnlyIn(Dist.CLIENT)
 public final class AutoWorkClientLibrary {
     private static final AutoWorkClientLibrary INSTANCE = new AutoWorkClientLibrary();
     /** Mirrors the wire payload cap so a local preset can always be bound. */

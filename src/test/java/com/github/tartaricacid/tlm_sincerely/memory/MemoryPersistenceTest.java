@@ -5,11 +5,14 @@ import com.github.tartaricacid.tlm_sincerely.config.subconfig.MemoryConfig;
 import com.github.tartaricacid.tlm_sincerely.memory.MaidMemory.MemoryEntry;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import net.minecraftforge.common.ForgeConfigSpec;
+import net.neoforged.fml.config.IConfigSpec;
+import net.neoforged.neoforge.common.ModConfigSpec;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -158,10 +161,9 @@ public class MemoryPersistenceTest {
     }
 
     private static void initConfig() {
-        ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
+        ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
         MemoryConfig.init(builder);
-        ForgeConfigSpec spec = builder.build();
-        spec.setConfig(CommentedConfig.inMemory());
+        loadSpecInMemory(builder.build());
     }
 
     private static Path createScenario(String name, String content) throws IOException {
@@ -240,4 +242,37 @@ public class MemoryPersistenceTest {
             throw new AssertionError(message + " (expected=" + expected + ", actual=" + actual + ")");
         }
     }
+
+    /**
+     * NeoForge 1.21 把 1.20.1 的 {@code ForgeConfigSpec#setConfig(CommentedConfig)} 换成了
+     * {@link ModConfigSpec#acceptConfig}，但 {@code ILoadedConfig} 是密封接口、唯一实现
+     * {@code LoadedConfig} 为包私有。这里用公开 API（{@code getDefault}/{@code getPath}）
+     * 收集默认值后反射构造 LoadedConfig（modConfig=null；默认值齐全时 acceptConfig 判定
+     * isCorrect=true，不会触发内部 save()，绕开对真实 ModConfig 的依赖）。
+     */
+    private static void loadSpecInMemory(ModConfigSpec spec) {
+        try {
+            CommentedConfig config = CommentedConfig.inMemory();
+            for (Field field : MemoryConfig.class.getDeclaredFields()) {
+                if (!ModConfigSpec.ConfigValue.class.isAssignableFrom(field.getType())) {
+                    continue;
+                }
+                field.setAccessible(true);
+                ModConfigSpec.ConfigValue<?> value = (ModConfigSpec.ConfigValue<?>) field.get(null);
+                config.set(value.getPath(), value.getDefault());
+            }
+            Class<?> cls = Class.forName("net.neoforged.fml.config.LoadedConfig");
+            Constructor<?> ctor = cls.getDeclaredConstructor(
+                    CommentedConfig.class, Path.class, net.neoforged.fml.config.ModConfig.class);
+            ctor.setAccessible(true);
+            // 直接注入 loadedConfig 私有字段：acceptConfig 的 isCorrect 对内存配置判定不稳
+            // （触发内部 save() 解引用真实 ModConfig），注入字段可完整绕开校正/保存链路。
+            Field loadedConfigField = ModConfigSpec.class.getDeclaredField("loadedConfig");
+            loadedConfigField.setAccessible(true);
+            loadedConfigField.set(spec, (IConfigSpec.ILoadedConfig) ctor.newInstance(config, null, null));
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            throw new IllegalStateException("无法加载测试配置（NeoForge 内部 API 变更）", e);
+        }
+    }
+
 }

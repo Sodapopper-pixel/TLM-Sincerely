@@ -154,7 +154,7 @@ public final class AutoWorkCompatCommand {
     private static ResourceLocation parseUid(CommandContext<CommandSourceStack> context) {
         String raw = UnicodeWordArgument.get(context, "uid");
         try {
-            return new ResourceLocation(raw);
+            return ResourceLocation.parse(raw);
         } catch (RuntimeException exception) {
             return null;
         }

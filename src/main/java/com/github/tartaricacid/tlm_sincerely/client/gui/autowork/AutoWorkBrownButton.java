@@ -39,10 +39,10 @@ import org.lwjgl.glfw.GLFW;
 public class AutoWorkBrownButton extends AbstractWidget {
     /** Mod-owned auto-work GUI texture. */
     public static final ResourceLocation TEXTURE_GUI =
-            new ResourceLocation("tlm_sincerely", "textures/gui/maid_gui_sincerely.png");
+            ResourceLocation.fromNamespaceAndPath("tlm_sincerely", "textures/gui/maid_gui_sincerely.png");
     /** TLM brown task-list background, reused for the control buttons. */
     public static final ResourceLocation TEXTURE_TASK =
-            new ResourceLocation("touhou_little_maid", "textures/gui/maid_gui_task.png");
+            ResourceLocation.fromNamespaceAndPath("touhou_little_maid", "textures/gui/maid_gui_task.png");
 
     private static final int TEXTURE_SIZE = 256;
     /** Uniform opaque black label color per the project's unified text style. */

@@ -9,9 +9,10 @@ import com.github.tartaricacid.tlm_sincerely.priority.detection.TaskWorkDetector
 import com.github.tartaricacid.touhoulittlemaid.api.task.IMaidTask;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.MaidPathFindingBFS;
-import com.github.wallev.maidsoulkitchen.api.task.farm.ICompatFarmHandler;
-import com.github.wallev.maidsoulkitchen.api.task.farm.ICompatFarmTask;
-import com.github.wallev.maidsoulkitchen.entity.data.inner.task.berryfruit.v1.BerryFruitData;
+import com.github.wallev.maidsoulkitchen.api.task.v1.farm.ICompatFarm;
+import com.github.wallev.maidsoulkitchen.api.task.v1.farm.ICompatFarmHandler;
+import com.github.wallev.maidsoulkitchen.entity.data.inner.task.FarmData;
+import com.github.wallev.maidsoulkitchen.entity.data.inner.task.FruitData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
@@ -37,14 +38,14 @@ import java.util.List;
  * <p>Harvest-only semantics: no tool requirement and no planting detection.
  */
 public final class MaidSoulKitchenFruitDetector implements TaskWorkDetector {
-    public static final ResourceLocation UID = new ResourceLocation("maidsoulkitchen", "fruit_farm");
+    public static final ResourceLocation UID = ResourceLocation.fromNamespaceAndPath("maidsoulkitchen", "fruit_farm");
 
     /** verticalSearchRange=2 produces five checked layers. */
     private static final int FRUIT_VERTICAL_RANGE = 2;
 
     @Override
     public boolean supports(IMaidTask task) {
-        return UID.equals(task.getUid()) && task instanceof ICompatFarmTask<?>;
+        return UID.equals(task.getUid()) && task instanceof ICompatFarm<?, ?>;
     }
 
     @Override
@@ -59,7 +60,7 @@ public final class MaidSoulKitchenFruitDetector implements TaskWorkDetector {
             context.setCursor(null);
             return unavailable(context, task, "TASK_DISABLED");
         }
-        if (!(task instanceof ICompatFarmTask<?> compatTask)) {
+        if (!(task instanceof ICompatFarm<?, ?> compatTask)) {
             return DetectionResult.unknown(task.getUid(), context.currentTick(), "NOT_COMPAT_FARM_TASK");
         }
         ICompatFarmHandler handler = compatTask.getCompatHandler(maid);
@@ -67,8 +68,11 @@ public final class MaidSoulKitchenFruitDetector implements TaskWorkDetector {
             context.setCursor(null);
             return unavailable(context, task, "NO_COMPAT_HANDLER");
         }
-        BerryFruitData data = compatTask.getTaskData(maid);
-        int searchYOffset = data == null ? 3 : data.searchYOffset();
+        // 1.21.1: ICompatFarm is <T, D extends FarmData>, and searchYOffset lives on
+        // FruitData (the fruit_farm task's data type, formerly BerryFruitData). Any
+        // other/absent data shape falls back to the default offset 3.
+        FarmData data = compatTask.getTaskData(maid);
+        int searchYOffset = data instanceof FruitData fruitData ? fruitData.searchYOffset() : 3;
 
         boolean homeMode = maid.isHomeModeEnable();
         BlockPos center = homeMode ? maid.getRestrictCenter() : maid.blockPosition();
@@ -133,9 +137,11 @@ public final class MaidSoulKitchenFruitDetector implements TaskWorkDetector {
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    private static boolean canHarvest(ICompatFarmTask<?> task, EntityMaid maid, BlockPos pos,
+    private static boolean canHarvest(ICompatFarm<?, ?> task, EntityMaid maid, BlockPos pos,
                                       BlockState state, ICompatFarmHandler handler) {
-        return ((ICompatFarmTask) task).canHarvest(maid, pos, state, handler);
+        // 1.21.1: TaskFruitFarm.canHarvest applies IAddonMaid.BLACK_LIST + the
+        // FruitHandler chain — the same conjunction as the runtime AI.
+        return ((ICompatFarm) task).canHarvest(maid, pos, state, handler);
     }
 
     private static boolean isNearOwner(EntityMaid maid, BlockPos pos) {
