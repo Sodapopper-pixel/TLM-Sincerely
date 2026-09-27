@@ -10,7 +10,7 @@
 
 ### 变更
 
-- **平台迁移至 Minecraft 1.21.1 / NeoForge 21.1.x（Java 21）**：主模组依赖为 Touhou Little Maid `1.5.3-neoforge+mc1.21.1`，Cloth Config API 升至 15.x；1.20.1 Forge 版本由 `main` 分支继续维护。
+- **平台迁移至 Minecraft 1.21.1 / NeoForge 21.1.x（Java 21）**：主模组依赖为 Touhou Little Maid `1.5.3-neoforge+mc1.21.1`，Cloth Config API 升至 15.x；1.20.1 Forge 版本由 `1.20.1forge` 分支继续维护。
 
 ### 修复
 

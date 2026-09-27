@@ -12,7 +12,7 @@
 
 - **模组名称**：《车万女仆：真心为你》
 - **Mod ID**: `tlm_sincerely`
-- **平台**: NeoForge 1.21.1（`1.21.1` 分支；`main` 仍为 Forge 1.20.1）
+- **平台**: NeoForge 1.21.1（`1.21.1neo` 分支，主支；`1.20.1forge` 分支为 Forge 1.20.1）
 - **Java**: 21
 - **主模组依赖**: touhou_little_maid `1.5.3-neoforge+mc1.21.1`
 - **开发者**: terk
