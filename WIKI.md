@@ -89,7 +89,7 @@ tlm_sincerely/
 - 在聊天栏直接与附近的女仆对话。
 - 支持 `@名字` 前缀指定女仆；严格前缀模式开启后，只有带前缀的消息会发送给女仆。
 - 无前缀时，可按配置范围自动选择最近的女仆。
-- 支持全局可见与私聊模式：私聊模式下玩家消息与女仆回复仅相关玩家可见。
+- 支持全局可见与私聊模式：私聊模式下玩家消息与女仆回复仅相关玩家可见。模式与可见性按玩家独立生效，随玩家数据持久化。
 - 女仆回复会通过气泡与聊天栏展示。
 - 支持中文女仆名字、UUID 精确选择、同名女仆提醒与附近女仆列表。
 - 支持通过命令给女仆改名。
@@ -102,10 +102,10 @@ tlm_sincerely/
 | `/tlmchat to <名字> <消息>` | 与指定名字女仆对话 |
 | `/tlmchat uuid <UUID> <消息>` | 与指定 UUID 女仆对话 |
 | `/tlmchat list` | 列出附近女仆 |
-| `/tlmchat mode` | 切换女仆对话模式 |
-| `/tlmchat mode on` | 开启对话模式 |
-| `/tlmchat mode off` | 关闭对话模式 |
-| `/tlmchat global` | 切换全局/私聊可见性 |
+| `/tlmchat mode` | 切换自己的女仆对话模式（按玩家独立生效） |
+| `/tlmchat mode on` | 开启自己的对话模式 |
+| `/tlmchat mode off` | 关闭自己的对话模式 |
+| `/tlmchat global` | 切换自己的全局/私聊可见性偏好（按玩家独立生效） |
 | `/tlmchat rename <名字或 uuid:UUID> <新名字>` | 改名，仅可操作自己的女仆 |
 
 #### 配置项
@@ -114,8 +114,8 @@ tlm_sincerely/
 
 | 配置项 | 默认值 | 说明 |
 |---|---|---|
-| `ChatModeEnabled` | `true` | 聊天栏女仆对话模式 |
-| `GlobalChatVisible` | `true` | 聊天消息是否对全部玩家可见 |
+| `ChatModeEnabled` | `true` | 新玩家的女仆对话模式默认值；玩家可用 `/tlmchat mode` 单独覆盖 |
+| `GlobalChatVisible` | `true` | 新玩家的全局/私聊可见性默认值；玩家可用 `/tlmchat global` 单独覆盖 |
 | `RequirePrefix` | `true` | 是否强制要求 `@` 前缀 |
 | `AutoChatRange` | `5.0` | 无前缀时自动对话范围，`0` 表示禁用 |
 | `PrefixPattern` | `@` | 名字前缀字符 |
@@ -299,8 +299,8 @@ tlm_sincerely/
 | `/tlmchat to` | 玩家 | 服务端 | 按名字选择女仆 |
 | `/tlmchat uuid` | 玩家 | 服务端 | 按 UUID 选择女仆 |
 | `/tlmchat list` | 玩家 | 服务端 | 列出附近女仆 |
-| `/tlmchat mode` | 玩家 | 服务端 | 切换对话模式 |
-| `/tlmchat global` | 玩家 | 服务端 | 切换全局/私聊 |
+| `/tlmchat mode` | 玩家 | 服务端 | 切换自己的对话模式（按玩家生效） |
+| `/tlmchat global` | 玩家 | 服务端 | 切换自己的全局/私聊偏好（按玩家生效） |
 | `/tlmchat rename` | 仅女仆主人 | 服务端 | 女仆改名 |
 | `/tlmmemory` | 仅女仆主人 | 服务端 | 记忆管理 |
 | `/tlmautowork compat report` | 玩家 | 服务端 | 查看问题任务 |

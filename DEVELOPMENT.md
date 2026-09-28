@@ -1,5 +1,7 @@
 # 开发手册与注意事项
 
+> 注记：本文件自 `818d16f`（1.21.1 NeoForge 迁移）起与 `1.20.1forge` 分支分叉，内容以本分支（NeoForge 1.21.1）为主；平台无关的通用教训仍可在两条分支间 cherry-pick 互移（口径见 AGENTS.md「文档分层规约」）。
+
 ## 项目结构
 
 ```
@@ -549,3 +551,15 @@ Remove-Item run\config\tlm_sincerely* -Force
 - **修复**：`defineInList` 的 allowedValues 用 `new ArrayList<>(List.of(...))`（可变 List 的 `contains(null)` 返回 false → 走正常纠正到默认值）。已验证：修复版在 21.1.219/233/248 + FML 4.0.42 全绿
 - 为何 dev 环境从未踩中：`run/config/tlm_sincerely-common.toml` 最早创建于 **8月8日 Forge 1.20.1 时期**（dev 日志里是 `ForgeConfigSpec/CORE` 的 Correcting 行，Forge 实现空安全），此后文件始终存在且键值齐全，NeoForge 这条带 bug 的 correct 路径在 dev 从未以"键缺失"状态执行过；且异常本身零日志，就算触发也只会看到不明所以的 broken state
 - 通用教训：① `defineInList` / `defineList` 的**校验器必须空安全**（`List.of` 做 allowedValues 或校验器都会在首次创建时踩雷，Forge 1.20.1 时代没事 ≠ NeoForge 没事）；② 分析整合包崩溃先看 latest.log 第一条 FATAL，别被 crash report 头部 NPE 带偏；③ `Cowardly refusing to send event ... to a broken mod state` = 更早的加载阶段已死，沿 FML 的 track/Loaded DEBUG 行（debug.log）向下游找第一个没走完的项；④ FML 配置阶段的异常多数静默——复现台（Maven 拉 exact 版本 jar + javap + 最小 main）比读分支 HEAD 源码可靠，分支 HEAD 与已发布 jar 的代码可能不同
+
+### 2026-09-28 全面审查修复踩坑（P1×7 + P2 全量修复，compileJava + runClient 验证）
+- **Mixin @Shadow final 字段**：shadow 字段加 Java `final` 关键字会编译报错"变量未在默认构造器中初始化"（mixin 类无构造器，blank final 无法 definite-assign）。表达目标字段 finalness 要用 `org.spongepowered.asm.mixin.Final` 注解——它是**无成员标记注解**，不能写 `@Final(remap = false)`（javap mixin jar 实锤）
+- **TLM 历史压缩延迟路径**：`MaidAIChatManager.chat` 命中 `tryCompressBeforeChat` 时直接 return，`tryToChat` 由 `HistorySummaryCallback.runAfterSummary` 延迟补发（`server.submit` 主线程、绕过 `chat()`）——任何依赖"chat() 同步窗口"的 ThreadLocal 状态机都会漏判延迟构造的 `LLMCallback`，要用按 maid UUID 的待注册标记做主机制
+- **TLM HTTP 回调线程**：`LLMOpenAIClient` 用 `httpClient.sendAsync(...).whenComplete(...)`，`onSuccess/onFailure`（及我们 mixin 注入的 `complete()`）跑在 **HTTP 线程**；此处访问 `ServerLevel.getEntity(UUID)` 等世界状态必须 `server.execute` 回主线程。且 `handle` 里 `shouldStopChat` 静默 return 时**回调根本不触发**——跨进程回调驱动的登记表必须有时间戳兜底清扫，否则泄漏 + 状态永久卡死
+- **网络包 encode/decode 防御契约**：NeoForge 解码抛异常 = 直接断连；所有 List/Map 计数在 encode 端必须 `Math.min` 到 decode 上限（`AutoWorkPresetData.encode` 注释是模块契约，新增字段必须遵守）
+- **COMMON 配置客户端同步**：NeoForge 不向客户端同步 COMMON 配置，客户端 UI 需要服务端权威值时要搭现有快照包下发（本次给 `AutoWorkSnapshotS2CPacket` 加了 `globalEnabled`，协议版本升 "4"）；`ModConfigEvent` 是 MOD 总线事件，`@EventBusSubscriber` 不写 `bus` 参数即可自动分流（FML 4.0.43 按 `IModBusEvent` 逐方法路由，`bus()` 已 @Deprecated）
+- **玩家 PersistentData 的持久化边界**：`getPersistentData()` 顶层键随玩家 NBT 保存（"NeoForgeData"）、退出重进保留，但 `ServerPlayer.restoreFrom` 死亡重生只复制 `PlayerPersisted` 子标签——需要跨死亡保留的偏好要放进 `PERSISTED_NBT_TAG`
+- **restrictRadius 扫描环号约定**：TLM `MaidMoveToBlockTask` 系 brain 的搜索环号 `i ∈ [0, radius)`（最远 Chebyshev 距离 radius-1），所有扫描型 Detector 一律 `(int) maid.getRestrictRadius() - 1`；follow 模式下 `isWithinRestriction` 恒 true，多扫一环会造成"判为可切入但 brain 永远不去做"的卡死
+- **evidence 字符串匹配要用精确值**：调度器 evidence 常量存在前缀包含关系（`PATH_BUDGET_EXHAUSTED` 包含 `BUDGET_EXHAUSTED` 子串），模糊 `contains` 会把不同语义的预算耗尽混在一个计数里
+- **cloth-config maven 坐标**：`maven.shedaniel.me` 上 `cloth-config-neoforge` 只有纯数字版本号（如 `15.0.140`），`+neoforge` 后缀是 Modrinth maven 的坐标体系，两者不可混用
+- **TLM skill 数据包**：`data/touhou_little_maid/skills/<id>/skill.md` 按正则加载，目录名=skill 标识符，改名要同步 front matter `name:` 与 docs 引用；1.21.1 的物品指令语法是数据组件（`item[custom_name=...]`），实体/容器 NBT 里的物品用小写 `count` 组件化格式——旧版 skill 教的是反方向
