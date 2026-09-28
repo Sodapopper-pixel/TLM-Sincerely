@@ -16,17 +16,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * Rejects new conversations while the maid has a pending command confirmation
- * (plan D8). The message is only sent when the maintenance guard did not
- * already cancel the same call, so the two HEAD injections never speak twice.
+ * (plan D8).
+ *
+ * <p>与 ChatMaintenanceGuardMixin 同时注入 chat() 的 HEAD。两个注入各自持有独立的
+ * CallbackInfo，本 handler 无法感知对方的取消状态，因此不做 isCancelled 检查；
+ * 重复发言由 Mixin 的取消语义天然避免——任一 guard 调用 cancel() 后目标方法立即
+ * 返回，后应用的 guard handler 与方法体都不会再执行，两个提示永远不会同时发出。
  */
 @Mixin(value = MaidAIChatManager.class, remap = false)
 public abstract class CommandConfirmationChatGuardMixin {
 
     @Inject(method = "chat", at = @At("HEAD"), cancellable = true)
     private void onChat(String message, ChatClientInfo clientInfo, ServerPlayer player, CallbackInfo ci) {
-        if (ci.isCancelled()) {
-            return;
-        }
         MaidAIChatManager self = (MaidAIChatManager) (Object) this;
         EntityMaid maid = self.getMaid();
         if (maid == null || !(maid.level() instanceof ServerLevel serverLevel)) {

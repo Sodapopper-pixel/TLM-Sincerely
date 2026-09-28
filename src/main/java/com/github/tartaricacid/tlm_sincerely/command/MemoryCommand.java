@@ -8,6 +8,7 @@ import com.github.tartaricacid.tlm_sincerely.memory.MaidMemoryManager;
 import com.github.tartaricacid.tlm_sincerely.memory.MaidMemory.MemoryEntry;
 import com.github.tartaricacid.touhoulittlemaid.ai.manager.entity.ChatClientInfo;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
+import com.google.gson.GsonBuilder;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -24,6 +25,7 @@ import net.minecraft.server.level.ServerPlayer;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -317,18 +319,13 @@ public final class MemoryCommand {
     }
 
     private static String exportJson(MaidMemory memory) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("{");
-        boolean first = true;
+        // 用 Gson 序列化而非手工拼接，保证 key（可能由 LLM 生成）和 value 中的
+        // 引号、反斜杠等字符被正确转义，输出始终是合法 JSON
+        Map<String, String> export = new LinkedHashMap<>();
         for (Map.Entry<String, MemoryEntry> entry : memory.getMemories().entrySet()) {
-            if (!first) sb.append(",");
-            first = false;
-            sb.append("\n  \"").append(entry.getKey()).append("\": ");
-            sb.append("\"").append(entry.getValue().value()).append("\"");
+            export.put(entry.getKey(), entry.getValue().value());
         }
-        if (!memory.isEmpty()) sb.append("\n");
-        sb.append("}");
-        return sb.toString();
+        return new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create().toJson(export);
     }
 
     private static String exportText(String maidName, MaidMemory memory) {

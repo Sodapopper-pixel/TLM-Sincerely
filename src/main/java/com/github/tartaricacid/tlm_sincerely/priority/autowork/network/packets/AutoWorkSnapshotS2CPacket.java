@@ -16,7 +16,9 @@ import java.util.UUID;
 
 /**
  * S2C snapshot carrying the server-authoritative maid state (bound snapshots
- * and compat entries). The client library is local and never sent here.
+ * and compat entries) plus the server-authoritative global auto work switch
+ * (COMMON config is not synced to clients). The client library is local and
+ * never sent here.
  */
 public record AutoWorkSnapshotS2CPacket(AutoWorkSnapshot snapshot) implements CustomPacketPayload {
     public static final Type<AutoWorkSnapshotS2CPacket> TYPE = new Type<>(
@@ -45,18 +47,28 @@ public record AutoWorkSnapshotS2CPacket(AutoWorkSnapshot snapshot) implements Cu
 
     public static void encode(AutoWorkSnapshotS2CPacket msg, FriendlyByteBuf buf) {
         buf.writeVarInt(msg.snapshot.revision());
+        // Server-authoritative global switch; see AutoWorkSnapshot.
+        buf.writeBoolean(msg.snapshot.globalEnabled());
 
         List<AutoWorkSnapshot.CompatEntry> compatEntries = msg.snapshot.compatEntries();
-        buf.writeVarInt(compatEntries.size());
-        for (AutoWorkSnapshot.CompatEntry entry : compatEntries) {
+        // Clamp both list sizes to the decode caps as well: a decoder
+        // exception closes the connection, so the encoder must never emit a
+        // count the receiver would reject (same contract as order below and
+        // AutoWorkPresetData.encode).
+        int compatSize = Math.min(compatEntries.size(), MAX_COMPAT_ENTRIES);
+        buf.writeVarInt(compatSize);
+        for (int i = 0; i < compatSize; i++) {
+            AutoWorkSnapshot.CompatEntry entry = compatEntries.get(i);
             buf.writeResourceLocation(entry.taskUid());
             buf.writeUtf(entry.level(), 32);
             buf.writeUtf(entry.reason(), 128);
         }
 
         List<AutoWorkSnapshot.MaidEntry> maids = msg.snapshot.maids();
-        buf.writeVarInt(maids.size());
-        for (AutoWorkSnapshot.MaidEntry entry : maids) {
+        int maidSize = Math.min(maids.size(), MAX_MAIDS);
+        buf.writeVarInt(maidSize);
+        for (int i = 0; i < maidSize; i++) {
+            AutoWorkSnapshot.MaidEntry entry = maids.get(i);
             buf.writeUUID(entry.maidId());
             buf.writeBoolean(entry.enabled());
             buf.writeUUID(entry.presetId());
@@ -66,8 +78,8 @@ public record AutoWorkSnapshotS2CPacket(AutoWorkSnapshot snapshot) implements Cu
             // never make the client reject the snapshot and drop the link.
             int orderSize = Math.min(order.size(), MAX_ORDER);
             buf.writeVarInt(orderSize);
-            for (int i = 0; i < orderSize; i++) {
-                buf.writeResourceLocation(order.get(i));
+            for (int j = 0; j < orderSize; j++) {
+                buf.writeResourceLocation(order.get(j));
             }
             buf.writeBoolean(entry.snapshotBaked());
             buf.writeVarInt(entry.stateRevision());
@@ -76,6 +88,7 @@ public record AutoWorkSnapshotS2CPacket(AutoWorkSnapshot snapshot) implements Cu
 
     public static AutoWorkSnapshotS2CPacket decode(FriendlyByteBuf buf) {
         int revision = buf.readVarInt();
+        boolean globalEnabled = buf.readBoolean();
 
         int compatCount = buf.readVarInt();
         if (compatCount < 0 || compatCount > MAX_COMPAT_ENTRIES) {
@@ -112,7 +125,7 @@ public record AutoWorkSnapshotS2CPacket(AutoWorkSnapshot snapshot) implements Cu
         }
 
         return new AutoWorkSnapshotS2CPacket(
-                new AutoWorkSnapshot(revision, compatEntries, maids)
+                new AutoWorkSnapshot(revision, globalEnabled, compatEntries, maids)
         );
     }
 

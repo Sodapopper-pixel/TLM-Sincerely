@@ -51,7 +51,10 @@ public final class FarmTaskWorkDetector implements TaskWorkDetector {
 
         boolean homeMode = maid.isHomeModeEnable();
         BlockPos center = homeMode ? maid.getRestrictCenter() : maid.blockPosition();
-        int horizontalRange = Math.max(0, (int) maid.getRestrictRadius());
+        // TLM 的 MaidMoveToBlockTask 只扫环号 [0, restrictRadius)，最远 Chebyshev
+        // 距离为 radius-1；这里必须同样 -1，否则 follow 模式下 distance=radius 环上的
+        // 作物会被误判可用，切入农耕后 MaidFarmMoveTask 永远到不了该作物。
+        int horizontalRange = Math.max(0, (int) maid.getRestrictRadius() - 1);
         TaskScanCursor cursor = context.cursor();
         if (cursor == null || !cursor.matches(center, homeMode, horizontalRange, FARM_VERTICAL_RANGE)) {
             cursor = TaskScanCursor.start(center, homeMode, horizontalRange, FARM_VERTICAL_RANGE,

@@ -1,5 +1,6 @@
 package com.github.tartaricacid.tlm_sincerely.priority.autowork.network;
 
+import com.github.tartaricacid.tlm_sincerely.config.subconfig.PriorityConfig;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkState;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkStateService;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.compat.AutoWorkCompatService;
@@ -18,6 +19,10 @@ import java.util.List;
  * <p>Reads only the bound per-maid state and the compat report; the preset
  * library is never included. Must be called from the server thread. Maids
  * visible to the requesting player (own + OP fallback) are projected.
+ *
+ * <p>The global {@code PriorityConfig.ENABLED} switch (COMMON config, not
+ * synced to clients) is read here on the server side so the snapshot carries
+ * the value the scheduler in {@code TaskAutoSwitchHandler} actually acts on.
  */
 public final class AutoWorkSnapshotBuilder {
     private AutoWorkSnapshotBuilder() {
@@ -64,7 +69,11 @@ public final class AutoWorkSnapshotBuilder {
             }
         }
 
-        return new AutoWorkSnapshot(revision, compatEntries, maidEntries);
+        // Server-authoritative global switch: the scheduler pauses when this
+        // COMMON config value is false, so the client must see this value,
+        // not its own (desynced) local copy.
+        boolean globalEnabled = PriorityConfig.ENABLED.get();
+        return new AutoWorkSnapshot(revision, globalEnabled, compatEntries, maidEntries);
     }
 
     private static boolean isVisibleTo(EntityMaid maid, ServerPlayer player) {

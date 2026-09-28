@@ -23,11 +23,11 @@ public final class ChatBarHandler {
 
     @SubscribeEvent
     public static void onServerChat(ServerChatEvent event) {
-        if (!ChatBarConfig.CHAT_MODE.get()) {
+        ServerPlayer player = event.getPlayer();
+        if (!ChatBarPlayerState.isChatModeEnabled(player)) {
             return;
         }
 
-        ServerPlayer player = event.getPlayer();
         String rawMessage = event.getRawText();
 
         String prefix = ChatBarConfig.PREFIX_PATTERN.get();
@@ -74,7 +74,8 @@ public final class ChatBarHandler {
         if (targetMaid != null) {
             sendChatToMaid(targetMaid, player, chatMessage);
 
-            if (!ChatBarConfig.GLOBAL_VISIBLE.get()) {
+            // 是否取消原始聊天消息由该玩家自己的私聊可见性偏好决定
+            if (!ChatBarPlayerState.isGlobalVisible(player)) {
                 event.setCanceled(true);
                 String format = "<%s -> %s> %s".formatted(
                         player.getScoreboardName(),

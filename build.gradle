@@ -115,7 +115,7 @@ configurations {
 dependencies {
     implementation "maven.modrinth:touhou-little-maid:${tlm_version}"
     // Official Cloth Maven (Modrinth POM-only artifact is unreliable for MDG)
-    implementation "me.shedaniel.cloth:cloth-config-neoforge:15.0.140"
+    implementation "me.shedaniel.cloth:cloth-config-neoforge:${cloth_config_version}"
     // Jade integration (optional at runtime; API needed at compile time)
     compileOnly "maven.modrinth:jade:15.10.2+neoforge"
     // Maidsoul Kitchen integration (optional addon; compile-time API only)

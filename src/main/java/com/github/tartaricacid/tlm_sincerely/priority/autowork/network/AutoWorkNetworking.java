@@ -31,7 +31,9 @@ import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.S
  */
 public final class AutoWorkNetworking {
     private static final Logger LOGGER = LoggerFactory.getLogger(AutoWorkNetworking.class);
-    public static final String PROTOCOL_VERSION = "3";
+    // v4: AutoWorkSnapshot gained the server-authoritative globalEnabled flag
+    // (COMMON config is not synced to clients by NeoForge).
+    public static final String PROTOCOL_VERSION = "4";
 
     private AutoWorkNetworking() {
     }
@@ -72,9 +74,5 @@ public final class AutoWorkNetworking {
     /** Server-side send helper (used by AutoWorkServerHandler / AutoWorkPushService). */
     public static void sendToPlayer(ServerPlayer player, CustomPacketPayload payload) {
         PacketDistributor.sendToPlayer(player, payload);
-    }
-
-    public static void sendToAllPlayers(CustomPacketPayload payload) {
-        PacketDistributor.sendToAllPlayers(payload);
     }
 }

@@ -1,12 +1,13 @@
 package com.github.tartaricacid.tlm_sincerely.mixin;
 
-import com.github.tartaricacid.tlm_sincerely.config.subconfig.ChatBarConfig;
+import com.github.tartaricacid.tlm_sincerely.chatbar.ChatBarPlayerState;
 import com.github.tartaricacid.tlm_sincerely.memory.MemoryMaintenanceManager;
 import com.github.tartaricacid.touhoulittlemaid.entity.chatbubble.ChatBubbleManager;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -16,6 +17,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 public class MaidChatBroadcastMixin {
 
     @Shadow
+    @Final
     private EntityMaid maid;
 
     @Redirect(
@@ -30,7 +32,9 @@ public class MaidChatBroadcastMixin {
         if (MemoryMaintenanceManager.isMaintaining(maid.getUUID())) {
             return;
         }
-        if (ChatBarConfig.GLOBAL_VISIBLE.get()) {
+        // 目标方法中 player 即 maid.getOwner()（对话主人本人）；
+        // 是否广播按主人自己的全局/私聊偏好决定，与 /tlmchat global 一致
+        if (ChatBarPlayerState.isGlobalVisible(player)) {
             MinecraftServer server = player.getServer();
             if (server != null) {
                 server.getPlayerList().broadcastSystemMessage(message, false);

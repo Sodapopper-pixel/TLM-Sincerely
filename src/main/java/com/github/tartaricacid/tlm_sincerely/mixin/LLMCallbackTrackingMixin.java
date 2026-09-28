@@ -6,6 +6,7 @@ import com.github.tartaricacid.touhoulittlemaid.ai.manager.entity.MaidAIChatMana
 import com.github.tartaricacid.touhoulittlemaid.ai.manager.response.ResponseChat;
 import com.github.tartaricacid.touhoulittlemaid.ai.service.llm.LLMMessage;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -18,6 +19,7 @@ import java.util.List;
 @Mixin(value = LLMCallback.class, remap = false)
 public abstract class LLMCallbackTrackingMixin {
     @Shadow
+    @Final
     protected EntityMaid maid;
 
     @Inject(method = "<init>(Lcom/github/tartaricacid/touhoulittlemaid/ai/manager/entity/MaidAIChatManager;Ljava/util/List;Z)V",

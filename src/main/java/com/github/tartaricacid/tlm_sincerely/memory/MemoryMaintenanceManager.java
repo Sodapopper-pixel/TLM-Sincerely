@@ -13,6 +13,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -24,6 +25,16 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
 
+/**
+ * 记忆维护调度器。维护链的判定采用"双机制配对"设计（详见 MemoryChatTracker 类注释）：
+ * <ul>
+ *   <li>同步路径：startTidy 的 chat() 调用栈上以 {@link #INTERNAL_MAINTENANCE_CALL}
+ *       ThreadLocal 判定；</li>
+ *   <li>延迟路径：TLM 的 tryCompressBeforeChat 命中时把 tryToChat 推迟到历史摘要回调
+ *       完成后补发，ThreadLocal 已失效，此时以 {@link #PENDING_MAINTENANCE_REGISTRATION}
+ *       按女仆 UUID 预置的标记（check-and-consume）判定。</li>
+ * </ul>
+ */
 public final class MemoryMaintenanceManager {
     private static final Logger LOGGER = LogManager.getLogger("TLM_Sincerely/Memory");
 
@@ -33,9 +44,17 @@ public final class MemoryMaintenanceManager {
     private static final Map<UUID, Long> tidyStartTime = new ConcurrentHashMap<>();
     private static final Map<UUID, Set<LLMMessage>> historySnapshot = new ConcurrentHashMap<>();
 
+    /**
+     * 按女仆 UUID 预置的维护标记：startTidy 发起 chat() 前置位，由该女仆维护链的首个
+     * LLMCallback 在 register 时以 check-and-consume 方式消费（延迟路径专用）。
+     */
+    private static final Map<UUID, Long> PENDING_MAINTENANCE_REGISTRATION = new ConcurrentHashMap<>();
+
     static final ThreadLocal<Boolean> INTERNAL_MAINTENANCE_CALL = ThreadLocal.withInitial(() -> false);
 
     private static final long TIDY_TIMEOUT_MS = 120_000;
+    /** 维护标记有效期：覆盖延迟路径中最长的一次历史摘要请求（TLM 单轮 HTTP 超时为 60s）。 */
+    private static final long PENDING_REGISTRATION_TTL_MS = TIDY_TIMEOUT_MS;
 
     private static int tickCounter = 0;
 
@@ -52,6 +71,29 @@ public final class MemoryMaintenanceManager {
 
     public static boolean isInternalMaintenanceCall() {
         return INTERNAL_MAINTENANCE_CALL.get();
+    }
+
+    /**
+     * startTidy 发起 chat() 前预置维护标记（check-and-consume 的置位端）。
+     * 压缩延迟路径下 tryToChat 会在历史摘要回调完成后于主线程补发，届时
+     * INTERNAL_MAINTENANCE_CALL 已清除，MemoryChatTracker.register 依赖该标记判定维护链。
+     */
+    static void markPendingMaintenanceRegistration(UUID maidUuid) {
+        PENDING_MAINTENANCE_REGISTRATION.put(maidUuid, System.currentTimeMillis());
+    }
+
+    /**
+     * register 时消费维护标记（check-and-consume 的消费端）。过期标记视为不存在，
+     * 防止滞留标记把后续普通聊天误判为维护链。
+     */
+    static boolean consumePendingMaintenanceRegistration(UUID maidUuid) {
+        Long markedAt = PENDING_MAINTENANCE_REGISTRATION.remove(maidUuid);
+        return markedAt != null && System.currentTimeMillis() - markedAt <= PENDING_REGISTRATION_TTL_MS;
+    }
+
+    /** 无论维护链从哪条路径完成注册，预置标记都应立即失效，避免被后续普通聊天误消费。 */
+    static void clearPendingMaintenanceRegistration(UUID maidUuid) {
+        PENDING_MAINTENANCE_REGISTRATION.remove(maidUuid);
     }
 
     public static boolean isMaintaining(UUID maidUuid) {
@@ -89,6 +131,11 @@ public final class MemoryMaintenanceManager {
         tickCounter++;
         if (tickCounter % 20 != 0) return;
 
+        // 兜底清扫 TLM 回调链路滞留的记账条目（回调被 TLM shouldStopChat 静默吞掉时
+        // onSuccess/onFailure 均不触发，complete 永不执行），见 MemoryChatTracker#sweepStaleEntries
+        MemoryChatTracker.sweepStaleEntries();
+        sweepStaleMaintenanceRegistrations();
+
         if (!pendingTidy.isEmpty()) {
             Iterator<UUID> it = pendingTidy.iterator();
             while (it.hasNext()) {
@@ -116,11 +163,18 @@ public final class MemoryMaintenanceManager {
                 boolean timeout = startTime != null && (now - startTime) > TIDY_TIMEOUT_MS;
                 if (timeout) {
                     LOGGER.warn("Maid {} memory maintenance timed out, terminating this maintenance generation", uuid);
-                    finishTidy(server, uuid, true);
+                    finishTidy(findMaid(server, uuid), uuid);
                     MemoryChatTracker.releaseMaintenanceChain(uuid);
                 }
             }
         }
+    }
+
+    /** 过期仍未消费的维护标记直接清除，防止滞留标记把后续普通聊天误判为维护链。 */
+    private static void sweepStaleMaintenanceRegistrations() {
+        long now = System.currentTimeMillis();
+        PENDING_MAINTENANCE_REGISTRATION.entrySet().removeIf(entry ->
+                now - entry.getValue() > PENDING_REGISTRATION_TTL_MS);
     }
 
     private static void startTidy(EntityMaid maid) {
@@ -168,6 +222,9 @@ public final class MemoryMaintenanceManager {
         ChatClientInfo clientInfo = new ChatClientInfo(language, maid.getName().getString(), List.of());
 
         LOGGER.info("Maid {} starting memory maintenance", uuid);
+        // 预置维护标记：chat() 若命中 TLM 的 tryCompressBeforeChat，本次维护对话会被
+        // 推迟到历史摘要回调完成后补发，届时 ThreadLocal 已清除，register 靠该标记判定
+        markPendingMaintenanceRegistration(uuid);
         INTERNAL_MAINTENANCE_CALL.set(true);
         try {
             maid.getAiChatManager().chat(tidyPrompt, clientInfo, player);
@@ -176,9 +233,11 @@ public final class MemoryMaintenanceManager {
         }
     }
 
-    private static void finishTidy(MinecraftServer server, UUID uuid, boolean callbackCompleted) {
-        EntityMaid maid = findMaid(server, uuid);
-
+    /**
+     * 结束一次维护并清理全部维护状态。maid 可能为 null（超时路径下女仆已卸载/死亡），
+     * 此时仅跳过历史清理；调用方必须保证本方法在服务器主线程执行。
+     */
+    private static void finishTidy(@Nullable EntityMaid maid, UUID uuid) {
         if (maid != null) {
             Set<LLMMessage> originalHistory = historySnapshot.get(uuid);
             if (originalHistory != null) {
@@ -197,15 +256,39 @@ public final class MemoryMaintenanceManager {
         maintainingMaids.remove(uuid);
         tidyStartTime.remove(uuid);
         historySnapshot.remove(uuid);
+        PENDING_MAINTENANCE_REGISTRATION.remove(uuid);
     }
 
-    /** Completes maintenance after the full asynchronous LLM/tool callback chain ends. */
+    /**
+     * Completes maintenance after the full asynchronous LLM/tool callback chain ends.
+     *
+     * <p>complete() 可能由 LLM 的 HTTP 回调线程触发（TLM 的 HttpClient.sendAsync 直接在
+     * HTTP 线程回调 onSuccess/onFailure），而 finishTidy 需要访问女仆的历史队列等实体
+     * 状态，因此这里把收尾调度回服务器主线程；已在主线程（如 sweep 兜底路径）时直接执行。
+     * 上下文直接携带 maid 实例，不再跨线程重查实体索引。
+     */
     public static void onMaintenanceCallbackCompleted(EntityMaid maid) {
-        if (!(maid.level() instanceof ServerLevel level) || !historySnapshot.containsKey(maid.getUUID())) {
+        if (!(maid.level() instanceof ServerLevel level)) {
             return;
         }
-        finishTidy(level.getServer(), maid.getUUID(), true);
-        MemoryChatTracker.releaseMaintenanceChain(maid.getUUID());
+        UUID uuid = maid.getUUID();
+        if (!historySnapshot.containsKey(uuid)) {
+            return;
+        }
+        MinecraftServer server = level.getServer();
+        Runnable finish = () -> {
+            // 超时路径可能已先行清理，二次检查保证幂等
+            if (!historySnapshot.containsKey(uuid)) {
+                return;
+            }
+            finishTidy(maid, uuid);
+            MemoryChatTracker.releaseMaintenanceChain(uuid);
+        };
+        if (server.isSameThread()) {
+            finish.run();
+        } else {
+            server.submit(finish);
+        }
     }
 
     public static void clearRuntimeState() {
@@ -213,6 +296,7 @@ public final class MemoryMaintenanceManager {
         pendingTidy.clear();
         tidyStartTime.clear();
         historySnapshot.clear();
+        PENDING_MAINTENANCE_REGISTRATION.clear();
         MemoryChatTracker.clear();
         tickCounter = 0;
         LOGGER.info("MemoryMaintenanceManager cleared runtime state");

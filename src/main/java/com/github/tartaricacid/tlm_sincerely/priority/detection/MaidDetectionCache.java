@@ -113,10 +113,16 @@ public final class MaidDetectionCache {
         }
     }
 
-    /** Records farm scan completion and repeated budget pressure for scheduler diagnostics. */
+    /**
+     * Records farm scan completion and repeated budget pressure for scheduler
+     * diagnostics. 只有 block 预算耗尽计入连续耗尽计数：PATH 预算是全局共享
+     * 预算（默认每 tick 4 次），多女仆下常态紧张，属于环境噪声，不能作为
+     * "该任务反复扫不完"的证据，否则会错误触发 exhaustedFallback。
+     * PATH 耗尽时计数保持原样（不累加也不清零），直到一次完整扫描结束才复位。
+     */
     public void recordScanOutcome(ResourceLocation taskUid, DetectionResult result, TaskScanCursor cursor) {
         String evidence = result.evidence();
-        if (evidence.contains("BUDGET_EXHAUSTED")) {
+        if (evidence.contains("BLOCK_BUDGET_EXHAUSTED")) {
             consecutiveBudgetExhaustions.merge(taskUid, 1, Integer::sum);
             return;
         }

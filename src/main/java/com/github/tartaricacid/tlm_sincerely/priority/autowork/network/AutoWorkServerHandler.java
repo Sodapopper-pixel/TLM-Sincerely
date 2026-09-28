@@ -2,8 +2,11 @@ package com.github.tartaricacid.tlm_sincerely.priority.autowork.network;
 
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPreset;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPresetService;
+import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkStateService;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.AutoWorkSeedS2CPacket;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.AutoWorkSnapshotS2CPacket;
+import com.github.tartaricacid.touhoulittlemaid.entity.task.TaskManager;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -14,7 +17,8 @@ import java.util.List;
  * Reusable helpers used by C2S packet handlers and server lifecycle hooks.
  *
  * <p>Centralises the server-thread send pattern, the {@code sendSnapshot}
- * call and the login seed copy. All methods assume they are invoked from the
+ * call, the login seed copy and the shared preset payload sanitization
+ * (push relay and login seed). All methods assume they are invoked from the
  * server thread.
  */
 public final class AutoWorkServerHandler {
@@ -46,7 +50,9 @@ public final class AutoWorkServerHandler {
 
     /**
      * Sends the frozen seed library on login. The client imports it only when
-     * it has no private library file yet.
+     * it has no private library file yet. The seed file is hand-editable, so
+     * the payload goes through the same sanitization as the push relay:
+     * unregistered task uids and malformed entries never reach the wire.
      */
     public static void sendSeed(ServerPlayer player) {
         if (player == null) {
@@ -56,11 +62,49 @@ public final class AutoWorkServerHandler {
         if (presetService == null) {
             return;
         }
-        List<AutoWorkPresetData> payload = new ArrayList<>();
+        List<AutoWorkPresetData> raw = new ArrayList<>();
         for (AutoWorkPreset preset : presetService.listPresets()) {
-            payload.add(AutoWorkPresetData.from(preset));
+            raw.add(AutoWorkPresetData.from(preset));
         }
+        List<AutoWorkPresetData> payload = sanitizePresets(raw);
         AutoWorkNetworking.sendToPlayer(player,
                 new AutoWorkSeedS2CPacket(presetService.getDefaultPresetId(), payload));
+    }
+
+    /**
+     * Drops malformed payload entries and task uids this server does not
+     * know, clamping names and order lengths to the wire caps. Shared by the
+     * push relay and the login seed so both outbound preset paths stay
+     * symmetric; a decoder exception closes the connection, so the encoder
+     * side must be conservative.
+     */
+    public static List<AutoWorkPresetData> sanitizePresets(List<AutoWorkPresetData> payload) {
+        List<AutoWorkPresetData> presets = new ArrayList<>();
+        if (payload != null) {
+            for (AutoWorkPresetData data : payload) {
+                if (data == null || data.id() == null) {
+                    continue;
+                }
+                String name = data.name() == null ? "" : data.name().trim();
+                name = name.replace('\u00a7', ' ').trim();
+                if (name.isEmpty()) {
+                    continue;
+                }
+                // sanitizeOrder drops idle / null / duplicate entries and caps
+                // the length; findTask then removes uids this server has no
+                // task for (the client cannot resolve them either).
+                List<ResourceLocation> order = new ArrayList<>();
+                for (ResourceLocation task : AutoWorkStateService.sanitizeOrder(data.order())) {
+                    if (TaskManager.findTask(task).isPresent()) {
+                        order.add(task);
+                    }
+                }
+                presets.add(new AutoWorkPresetData(data.id(), name, order));
+                if (presets.size() >= AutoWorkPresetData.MAX_PRESETS) {
+                    break;
+                }
+            }
+        }
+        return presets;
     }
 }

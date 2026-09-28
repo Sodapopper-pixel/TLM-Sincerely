@@ -14,9 +14,15 @@ import java.util.UUID;
  * {@code docs/adr/0004-client-preset-library-and-maid-bound-snapshot.md}).
  * Detector compat levels stay server-side and are shipped through
  * {@link CompatEntry}.
+ *
+ * <p>{@code globalEnabled} carries the server's {@code PriorityConfig.ENABLED}
+ * value. COMMON configs are not synced to clients by NeoForge, so on a
+ * dedicated server the client UI / Jade line must read this field instead of
+ * the local config value.
  */
 public record AutoWorkSnapshot(
         int revision,
+        boolean globalEnabled,
         List<CompatEntry> compatEntries,
         List<MaidEntry> maids
 ) {
