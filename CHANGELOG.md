@@ -8,6 +8,10 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **与 MaidFileManager 联动：记忆随 `.maid` 档案迁移**：安装 [MaidFileManager](https://github.com/zgxhzhr/MaidFileManager) 1.4.0+ 后，导出女仆档案会携带该女仆的全部记忆，跨存档/整合包导入（含 1.20.1 Forge ↔ 1.21.1 NeoForge 跨版本）后记忆自动跟随到新女仆；重复导入同一档案时旧记忆文件自动备份。未安装该模组时行为不变。
+
 ### 变更
 
 - **平台迁移至 Minecraft 1.21.1 / NeoForge 21.1.x（Java 21）**：主模组依赖为 Touhou Little Maid `1.5.3-neoforge+mc1.21.1`，Cloth Config API 升至 15.x；1.20.1 Forge 版本由 `1.20.1forge` 分支继续维护。

@@ -11,6 +11,7 @@ import com.github.tartaricacid.tlm_sincerely.command.UnicodeWordArgument;
 import com.github.tartaricacid.tlm_sincerely.config.GeneralConfig;
 import com.github.tartaricacid.tlm_sincerely.memory.MaidMemoryManager;
 import com.github.tartaricacid.tlm_sincerely.memory.MemoryMaintenanceManager;
+import com.github.tartaricacid.tlm_sincerely.memory.compat.MaidFileManagerBridge;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPresetService;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkStateService;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.compat.AutoWorkCompatService;
@@ -66,6 +67,7 @@ public class SincerelyMod {
     // NeoForge 21.1 对错总线的监听器直接抛 IllegalArgumentException）。
     public void onCommonSetup(FMLCommonSetupEvent event) {
         CompatDetectorBootstrap.register();
+        MaidFileManagerBridge.register();
     }
 
     @SubscribeEvent

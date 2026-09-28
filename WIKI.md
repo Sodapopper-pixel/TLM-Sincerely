@@ -200,6 +200,7 @@ tlm_sincerely/
 - 玩家可通过命令查看、导出、删除记忆，或触发 AI 回顾补写。
 - 记忆文件按女仆 UUID 持久化，服务端重启后保留。
 - 女仆经神龛/胶片复活后记忆与名字自动延续（按胶片快照迁移；祭坛配方复活暂不覆盖）。
+- 安装 [MaidFileManager](https://github.com/zgxhzhr/MaidFileManager)（`maid_file_manager` 1.4.0+，可选联动）后，导出 `.maid` 女仆档案会自动携带该女仆的全部记忆；跨存档、跨整合包导入（含 1.20.1 Forge ↔ 1.21.1 NeoForge 跨版本）后记忆自动跟随到新女仆。同一档案对同一玩家重复导入时会先备份旧记忆文件再覆盖；未安装该模组时无此行为，其余功能不受影响。
 
 #### 相关命令
 
@@ -468,7 +469,7 @@ tlm_sincerely/
 | 兼容报告 | `priority/autowork/compat/` | [docs/自动切换工作模块.md](docs/自动切换工作模块.md) |
 | 自动工作 GUI | `client/gui/autowork/` | [docs/自动切换工作模块.md](docs/自动切换工作模块.md) |
 | 客户端预设库 | `client/autowork/` | [docs/自动切换工作模块.md](docs/自动切换工作模块.md) |
-| 记忆系统 | `memory/`、`ai/tool/MaidMemoryTool.java`、`ai/context/MaidMemoryContext.java` | [docs/简易记忆系统模块.md](docs/简易记忆系统模块.md) |
+| 记忆系统 | `memory/`、`memory/compat/MaidFileManagerBridge.java`、`ai/tool/MaidMemoryTool.java`、`ai/context/MaidMemoryContext.java` | [docs/简易记忆系统模块.md](docs/简易记忆系统模块.md) |
 | 命令执行 | `command/`、`ai/tool/MaidCommandTool.java` | [docs/女仆命令执行模块.md](docs/女仆命令执行模块.md) |
 | 配置系统 | `config/`、`client/gui/ConfigScreen.java` | 无单独文档 |
 | 客户端集成 | `client/network/`、`client/jade/`、`mixin/` | 无单独文档 |

@@ -563,3 +563,12 @@ Remove-Item run\config\tlm_sincerely* -Force
 - **evidence 字符串匹配要用精确值**：调度器 evidence 常量存在前缀包含关系（`PATH_BUDGET_EXHAUSTED` 包含 `BUDGET_EXHAUSTED` 子串），模糊 `contains` 会把不同语义的预算耗尽混在一个计数里
 - **cloth-config maven 坐标**：`maven.shedaniel.me` 上 `cloth-config-neoforge` 只有纯数字版本号（如 `15.0.140`），`+neoforge` 后缀是 Modrinth maven 的坐标体系，两者不可混用
 - **TLM skill 数据包**：`data/touhou_little_maid/skills/<id>/skill.md` 按正则加载，目录名=skill 标识符，改名要同步 front matter `name:` 与 docs 引用；1.21.1 的物品指令语法是数据组件（`item[custom_name=...]`），实体/容器 NBT 里的物品用小写 `count` 组件化格式——旧版 skill 教的是反方向
+
+### MaidFileManager 迁移 SPI 的零编译依赖接入（2026-09-28，记忆随 .maid 档案迁移）
+- **背景**：`maid_file_manager`（NeoForge 1.21.1 / Forge 1.20.1 双版本）能把女仆导出为 `.maid` 档案跨存档迁移；其迁移 SPI（`io.github.zgxhzhr.maidfm.spi.MaidMigrationProvider/Registry`，1.4.0+）专为"不在女仆实体 NBT 内、按 UUID 关联的外部数据"设计。我们的记忆 JSON 在 config 目录，正是这个场景；实体 NBT 内的数据（自动工作绑定快照）会被其 `saveWithoutId` 导出自动带走，无需桥接
+- **对方无 maven 仓 → 反射 + Proxy 接入**：`ModList.isLoaded("maid_file_manager")` 守卫 → `Class.forName` 取 SPI 接口与 Registry → `Proxy.newProxyInstance` 造实现 → 反射调 `MaidMigrationRegistry.register` 静态方法。回调参数（EntityMaid/CompoundTag/ResourceLocation）全是本模组强依赖类型，回调体内零反射。桥类 `memory/compat/MaidFileManagerBridge`
+- **JDK Proxy 不自动执行接口 default 方法与 Object 方法**：`isAvailable()` 是接口 default 方法，也会进 InvocationHandler——handler 必须对它显式返回 `true`，否则对方 `getAvailable()` 的 filter 拆箱 null 直接 NPE；`equals/hashCode/toString` 同理要手动分发
+- **记忆导出直接读磁盘文件**：`save()` 即时落盘、tmp+atomic move 原子替换，磁盘即权威快照，export 读文件文本即可（顺手 parse 校验，坏文件不进档案），不必走 CACHE；并发读只会读到旧/新完整内容之一
+- **导入换绑**：`importData` 在女仆 `addFreshEntity` 后、UUID 已确定性派生（源 UUID+玩家 UUID）时回调，直接把 JSON 原子写到新 UUID 文件并清缓存即可；目标已存在（同玩家重复导入同档案）先备份 `.bak.时间戳`——导入的是全新实体，覆盖语义正确，与 `MaidRebornHandler` 的"新 UUID 已有则跳过"不同（复活是同一只，导入是新女仆）
+- **载荷设计**：extras 里存 `version`+`memory_json`（JSON 原文）而非结构化转 NBT——JSON 结构由我们自己的解析路径消化，跨 MC 版本（1.20.1 ↔ 1.21.1）天然稳定，对方的跨版本迁移对我们零成本
+- mods.toml 声明 `maid_file_manager` 为 optional 依赖（`[1.4,)`，AFTER）；SPI 类缺失（旧版对方）按 info 记日志静默降级，不算错误
