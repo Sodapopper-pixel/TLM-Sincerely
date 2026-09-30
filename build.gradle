@@ -57,24 +57,40 @@ neoForge {
     }
 
     runs {
+        // 与 1.20.1forge 分支（run/）的 dev 环境隔离：两分支不共用游戏目录，
+        // 避免 config/存档/mods 残留互相污染（forge 线曾因混入主支 jar 启动失败）。
         client {
             client()
+            gameDirectory = file('run-neo')
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        // 联机双开的第二客户端实例（host 用 runClient 开局域网，joiner 用 runJoiner 连入）。
+        // 用户名与 host 的默认 "Dev" 区分，避免离线模式同名被拒。
+        joiner {
+            client()
+            gameDirectory = file('run-neo2')
+            programArgument '--username'
+            programArgument 'TesterB'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 
         server {
             server()
+            gameDirectory = file('run-neo')
             programArgument '--nogui'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 
         gameTestServer {
             type = 'gameTestServer'
+            gameDirectory = file('run-neo')
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 
         data {
             data()
+            gameDirectory = file('run-neo')
             programArguments.addAll '--mod', project.mod_id, '--all',
                     '--output', file('src/generated/resources/').getAbsolutePath(),
                     '--existing', file('src/main/resources/').getAbsolutePath()

@@ -37,3 +37,5 @@
 /cd.txt
 /.tmp-mdk/
 __pycache__/
+/run-neo/
+/run-neo2/
