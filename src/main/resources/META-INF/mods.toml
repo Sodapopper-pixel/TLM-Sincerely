@@ -43,3 +43,12 @@ mandatory = false
 versionRange = "[11,)"
 ordering = "AFTER"
 side = "BOTH"
+
+# 可选联动：MaidFileManager 的 .maid 档案导出/导入会经迁移 SPI 携带记忆数据；
+# 桥接在运行时反射接入，SPI 自其 1.4.0 起提供。
+[[dependencies.tlm_sincerely]]
+modId = "maid_file_manager"
+mandatory = false
+versionRange = "[1.4,)"
+ordering = "AFTER"
+side = "BOTH"

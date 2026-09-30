@@ -5,12 +5,13 @@
 [![Java](https://img.shields.io/badge/Java-17-ED8B00?style=flat-square)](https://adoptium.net/)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
 
-《车万女仆：真心为你》是 [Touhou Little Maid / 车万女仆](https://www.curseforge.com/minecraft/mc-mods/touhou-little-maid) 的 Forge 1.20.1 附属模组，围绕女仆对话、工作调度和长期记忆提供增强功能。
+《车万女仆：真心为你》是 [Touhou Little Maid / 车万女仆](https://www.curseforge.com/minecraft/mc-mods/touhou-little-maid) 的 Forge 1.20.1 附属模组，围绕女仆对话、工作调度和长期记忆提供增强功能。（1.21.1 NeoForge 版本由 `1.21.1neo` 分支维护）
 目前实现了：
 - 在聊天栏中与女仆agent进行对话
 - **核心功能**工作模式自动切换模式
 - 女仆agent记忆系统
 - 女仆agent指令系统
+- 女仆agent命令执行（AI 可以主人的身份执行游戏内命令，含危险命令确认与审计日志）
 
 欢迎反馈 bug 与提交 pr 修复
 

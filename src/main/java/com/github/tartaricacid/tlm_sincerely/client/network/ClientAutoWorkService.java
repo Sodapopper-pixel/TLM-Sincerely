@@ -1,5 +1,6 @@
 package com.github.tartaricacid.tlm_sincerely.client.network;
 
+import com.github.tartaricacid.tlm_sincerely.config.subconfig.PriorityConfig;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkSnapshot;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.RequestAutoWorkSnapshotC2SPacket;
 import net.minecraft.resources.ResourceLocation;
@@ -94,6 +95,19 @@ public final class ClientAutoWorkService {
     public void clear() {
         this.snapshot = null;
         listeners.clear();
+    }
+
+    /**
+     * The global auto work switch as the server sees it. COMMON configs are
+     * not synced to clients, so the server ships the value inside the
+     * snapshot; before the first snapshot arrives (single player pre-login)
+     * we fall back to the local config value, which matches the integrated
+     * server. The scheduler's actual gate is {@code TaskAutoSwitchHandler},
+     * which reads the same server-side config value.
+     */
+    public boolean globalEnabledOrDefault() {
+        AutoWorkSnapshot s = this.snapshot;
+        return s != null ? s.globalEnabled() : PriorityConfig.ENABLED.get();
     }
 
     /** Returns the cached entry for a maid, or empty if not visible. */

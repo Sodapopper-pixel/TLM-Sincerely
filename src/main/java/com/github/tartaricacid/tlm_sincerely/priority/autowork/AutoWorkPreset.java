@@ -13,9 +13,8 @@ import java.util.UUID;
  * maid's bound snapshot when selected; the server only holds the frozen seed
  * used for legacy migration and the first-join copy.
  *
- * <p>Unlike the legacy {@code TaskPriorityPreset}, this class has no
- * numeric priority field; the {@link #order()} list IS the priority.
- * Index 0 is the highest priority.
+ * <p>This class has no numeric priority field; the {@link #order()} list IS
+ * the priority. Index 0 is the highest priority.
  *
  * <p>{@code id} is a stable UUID used to reference the preset from
  * {@link AutoWorkState#presetId()}; name is only for display.

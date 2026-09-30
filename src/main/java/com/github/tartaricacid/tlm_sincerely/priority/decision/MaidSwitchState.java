@@ -206,11 +206,15 @@ public final class MaidSwitchState {
         startupBusyObserved = false;
     }
 
+    /**
+     * 每次调用都以女仆当前实际任务刷新 {@code suspendedTaskUid}，即记下
+     * "被打断前的最后一个任务"。抢占期间当前任务可能被外部 setTask 改掉，
+     * 若只在首次抢占时记录，恢复目标会错位到早已不在位的旧任务。
+     * 当前任务本身是攻击任务时不会进入抢占分支，恢复目标不会被污染。
+     */
     public void beginAttackPreempt(ResourceLocation taskUid) {
-        if (!attackPreempted) {
-            suspendedTaskUid = taskUid;
-            attackPreempted = true;
-        }
+        suspendedTaskUid = taskUid;
+        attackPreempted = true;
         attackMissingSinceTick = -1;
     }
 

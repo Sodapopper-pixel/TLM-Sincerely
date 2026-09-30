@@ -28,6 +28,12 @@ public record AutoWorkState(boolean enabled, UUID presetId, String presetName,
     public AutoWorkState {
         presetId = presetId == null ? NO_PRESET_ID : presetId;
         presetName = presetName == null ? "" : presetName;
+        // 对齐快照包 encode 的 writeUtf(presetName, 64)：NBT 反序列化与 seed 默认
+        // 预设两条路径都绕过网络包的 64 上限校验，超长名字会在服务端登录发包时
+        // 抛异常并被 netty 断开连接（客户端表现为进服即被静默踢出）。
+        if (presetName.length() > 64) {
+            presetName = presetName.substring(0, 64);
+        }
         order = order == null ? List.of() : List.copyOf(order);
     }
 

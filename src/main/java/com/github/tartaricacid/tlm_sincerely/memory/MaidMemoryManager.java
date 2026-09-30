@@ -101,37 +101,44 @@ public final class MaidMemoryManager {
     }
 
     static boolean saveTo(Path dir, UUID maidUuid, MaidMemory memory) {
+        dir.toFile().mkdirs();
+
+        JsonObject root = new JsonObject();
+        JsonObject memObj = new JsonObject();
+
+        for (Map.Entry<String, MemoryEntry> entry : memory.getMemories().entrySet()) {
+            MemoryEntry mem = entry.getValue();
+            JsonObject item = new JsonObject();
+            item.addProperty("value", mem.value());
+            item.addProperty("importance", mem.importance());
+            item.addProperty("createdAt", mem.createdAt());
+            item.addProperty("updatedAt", mem.updatedAt());
+            item.addProperty("lastAccessedAt", mem.lastAccessedAt());
+            item.addProperty("accessCount", mem.accessCount());
+            item.addProperty("source", mem.source());
+            memObj.add(entry.getKey(), item);
+        }
+
+        root.add("memories", memObj);
+
+        JsonObject metaObj = new JsonObject();
+        metaObj.addProperty("lastTidyAt", memory.getLastTidyAt());
+        root.add("meta", metaObj);
+
+        return writeJsonAtomically(getFile(dir, maidUuid), GSON.toJson(root));
+    }
+
+    /**
+     * tmp 文件 + atomic move 原子写入；目标文件系统不支持 atomic move 时退化为普通替换。
+     * 并发读侧（如导出）要么读到旧完整内容、要么读到新完整内容，不会读到半个文件。
+     */
+    private static boolean writeJsonAtomically(File file, String json) {
         Path tmpPath = null;
         try {
-            dir.toFile().mkdirs();
-
-            JsonObject root = new JsonObject();
-            JsonObject memObj = new JsonObject();
-
-            for (Map.Entry<String, MemoryEntry> entry : memory.getMemories().entrySet()) {
-                MemoryEntry mem = entry.getValue();
-                JsonObject item = new JsonObject();
-                item.addProperty("value", mem.value());
-                item.addProperty("importance", mem.importance());
-                item.addProperty("createdAt", mem.createdAt());
-                item.addProperty("updatedAt", mem.updatedAt());
-                item.addProperty("lastAccessedAt", mem.lastAccessedAt());
-                item.addProperty("accessCount", mem.accessCount());
-                item.addProperty("source", mem.source());
-                memObj.add(entry.getKey(), item);
-            }
-
-            root.add("memories", memObj);
-
-            JsonObject metaObj = new JsonObject();
-            metaObj.addProperty("lastTidyAt", memory.getLastTidyAt());
-            root.add("meta", metaObj);
-
-            File file = getFile(dir, maidUuid);
             File tmpFile = new File(file.getParentFile(),
-                    "." + maidUuid + "." + UUID.randomUUID() + ".tmp");
+                    "." + file.getName() + "." + UUID.randomUUID() + ".tmp");
             tmpPath = tmpFile.toPath();
-            FileUtils.writeStringToFile(tmpFile, GSON.toJson(root), StandardCharsets.UTF_8);
+            FileUtils.writeStringToFile(tmpFile, json, StandardCharsets.UTF_8);
 
             try {
                 Files.move(tmpFile.toPath(), file.toPath(),
@@ -140,10 +147,9 @@ public final class MaidMemoryManager {
                 // Fallback for filesystems that do not support atomic move
                 Files.move(tmpFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
-
             return true;
         } catch (IOException e) {
-            LOGGER.error("Failed to save memory for {}", maidUuid, e);
+            LOGGER.error("Failed to write memory file {}", file.getAbsolutePath(), e);
             return false;
         } finally {
             if (tmpPath != null) {
@@ -199,6 +205,77 @@ public final class MaidMemoryManager {
                     return false;
                 }
             }
+        }
+    }
+
+    /**
+     * MaidFileManager 迁移桥导出：返回该女仆记忆 JSON 文件原文。
+     * save() 即时落盘，磁盘文件即权威快照，无需走缓存。
+     *
+     * @return JSON 文本；无记忆文件、文件损坏或读取失败时返回 null（导出方按“无数据”处理）
+     */
+    public static String exportMemoryJson(UUID maidUuid) {
+        synchronized (lockFor(maidUuid)) {
+            File file = getFile(memoryDir(), maidUuid);
+            if (!file.exists()) {
+                return null;
+            }
+            try {
+                String json = FileUtils.readFileToString(file, StandardCharsets.UTF_8);
+                // 损坏内容不进 .maid 档案；坏文件本就应由 loadFrom 的隔离机制处理
+                JsonParser.parseString(json);
+                return json;
+            } catch (JsonParseException | IllegalStateException | IOException e) {
+                LOGGER.warn("Failed to export memory JSON for {}", maidUuid, e);
+                return null;
+            }
+        }
+    }
+
+    /**
+     * MaidFileManager 迁移桥导入：把 .maid 档案里携带的记忆 JSON 写到目标女仆（导入后
+     * UUID 已由对方确定性派生，此处直接落盘到新 UUID）。目标文件已存在（同玩家重复导入
+     * 同一档案）时先备份为 {@code .bak.时间戳} 再覆盖，导入的女仆是全新实体，记忆应跟随档案。
+     * 写入成功后清掉该 UUID 缓存，让后续读取从新文件加载。
+     *
+     * @return true 表示写入成功；JSON 无效、校验失败或写盘失败返回 false
+     */
+    public static boolean importMemoryJson(UUID maidUuid, String json) {
+        if (json == null || json.isBlank()) {
+            return false;
+        }
+        try {
+            JsonObject root = JsonParser.parseString(json).getAsJsonObject();
+            if (!root.has("memories")) {
+                LOGGER.warn("Rejected memory JSON without 'memories' for {}", maidUuid);
+                return false;
+            }
+        } catch (JsonParseException | IllegalStateException e) {
+            LOGGER.warn("Rejected invalid memory JSON on import for {}", maidUuid, e);
+            return false;
+        }
+
+        synchronized (lockFor(maidUuid)) {
+            Path dir = memoryDir();
+            File file = getFile(dir, maidUuid);
+            if (file.exists()) {
+                File backup = new File(file.getParentFile(),
+                        file.getName() + ".bak." + System.currentTimeMillis());
+                try {
+                    Files.move(file.toPath(), backup.toPath());
+                    LOGGER.info("Backed up existing memory file for {} to {}", maidUuid, backup.getName());
+                } catch (IOException e) {
+                    LOGGER.error("Failed to back up memory file for {}, aborting import", maidUuid, e);
+                    return false;
+                }
+            }
+            dir.toFile().mkdirs();
+            boolean written = writeJsonAtomically(file, json);
+            if (written) {
+                CACHE.remove(maidUuid);
+                LOGGER.info("Imported maid memory JSON for {}", maidUuid);
+            }
+            return written;
         }
     }
 

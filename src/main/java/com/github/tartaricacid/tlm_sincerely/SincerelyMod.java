@@ -10,6 +10,7 @@ import com.github.tartaricacid.tlm_sincerely.command.UnicodeWordArgument;
 import com.github.tartaricacid.tlm_sincerely.config.GeneralConfig;
 import com.github.tartaricacid.tlm_sincerely.memory.MaidMemoryManager;
 import com.github.tartaricacid.tlm_sincerely.memory.MemoryMaintenanceManager;
+import com.github.tartaricacid.tlm_sincerely.memory.compat.MaidFileManagerBridge;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPresetService;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkStateService;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.compat.AutoWorkCompatService;
@@ -19,9 +20,13 @@ import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkS
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.push.AutoWorkPushService;
 import com.github.tartaricacid.tlm_sincerely.priority.detection.compat.CompatDetectorBootstrap;
 import com.github.tartaricacid.tlm_sincerely.priority.TaskAutoSwitchHandler;
+import net.minecraft.commands.synchronization.ArgumentTypeInfo;
 import net.minecraft.commands.synchronization.ArgumentTypeInfos;
 import net.minecraft.commands.synchronization.SingletonArgumentInfo;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
@@ -36,15 +41,34 @@ import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 
+import java.util.function.Supplier;
+
 @Mod(SincerelyExtension.MOD_ID)
 public class SincerelyMod {
     private static boolean configRegistered = false;
-    private static boolean argumentTypesRegistered = false;
+
+    /**
+     * 1.20.1 命令树包按 {@code COMMAND_ARGUMENT_TYPE} registry id 编解码：
+     * 只调 {@link ArgumentTypeInfos#registerByClass}（仅填 BY_CLASS map）会导致序列化写出
+     * id=-1、客户端按 id 反查得到 null 节点、字节流错位（联机进服时客户端在
+     * {@code ClientboundCommandsPacket.readNode} 的 {@code readVarIntArray} 处越界，
+     * 被 "Internal Exception: DecoderException: IndexOutOfBoundsException" 断开）。
+     * 必须经 DeferredRegister 注册进 registry，并在 supplier 里同时回填 BY_CLASS。
+     */
+    public static final DeferredRegister<ArgumentTypeInfo<?, ?>> COMMAND_ARGUMENT_TYPES =
+            DeferredRegister.create(Registries.COMMAND_ARGUMENT_TYPE, SincerelyExtension.MOD_ID);
+
+    public static final Supplier<SingletonArgumentInfo<UnicodeWordArgument>> UNICODE_WORD_INFO =
+            COMMAND_ARGUMENT_TYPES.register("unicode_word", () ->
+                    ArgumentTypeInfos.registerByClass(
+                            UnicodeWordArgument.class,
+                            SingletonArgumentInfo.contextFree(() -> UnicodeWordArgument.word(""))
+                    ));
 
     public SincerelyMod() {
-        registerArgumentTypes();
         MinecraftForge.EVENT_BUS.register(this);
         FMLJavaModLoadingContext.get().getModEventBus().addListener(this::onCommonSetup);
+        COMMAND_ARGUMENT_TYPES.register(FMLJavaModLoadingContext.get().getModEventBus());
         AutoWorkMenus.register(FMLJavaModLoadingContext.get().getModEventBus());
         if (!configRegistered) {
             configRegistered = true;
@@ -58,6 +82,7 @@ public class SincerelyMod {
     public void onCommonSetup(FMLCommonSetupEvent event) {
         AutoWorkNetworking.register();
         CompatDetectorBootstrap.register();
+        MaidFileManagerBridge.register();
     }
 
     @SubscribeEvent
@@ -136,14 +161,4 @@ public class SincerelyMod {
         }
     }
 
-    private static void registerArgumentTypes() {
-        if (argumentTypesRegistered) {
-            return;
-        }
-        argumentTypesRegistered = true;
-        ArgumentTypeInfos.registerByClass(
-                UnicodeWordArgument.class,
-                SingletonArgumentInfo.contextFree(() -> UnicodeWordArgument.word(""))
-        );
-    }
 }

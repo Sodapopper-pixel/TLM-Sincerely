@@ -89,7 +89,7 @@ tlm_sincerely/
 - 在聊天栏直接与附近的女仆对话。
 - 支持 `@名字` 前缀指定女仆；严格前缀模式开启后，只有带前缀的消息会发送给女仆。
 - 无前缀时，可按配置范围自动选择最近的女仆。
-- 支持全局可见与私聊模式：私聊模式下玩家消息与女仆回复仅相关玩家可见。
+- 支持全局可见与私聊模式：私聊模式下玩家消息与女仆回复仅相关玩家可见。模式与可见性按玩家独立生效，随玩家数据持久化。
 - 女仆回复会通过气泡与聊天栏展示。
 - 支持中文女仆名字、UUID 精确选择、同名女仆提醒与附近女仆列表。
 - 支持通过命令给女仆改名。
@@ -102,10 +102,10 @@ tlm_sincerely/
 | `/tlmchat to <名字> <消息>` | 与指定名字女仆对话 |
 | `/tlmchat uuid <UUID> <消息>` | 与指定 UUID 女仆对话 |
 | `/tlmchat list` | 列出附近女仆 |
-| `/tlmchat mode` | 切换女仆对话模式 |
-| `/tlmchat mode on` | 开启对话模式 |
-| `/tlmchat mode off` | 关闭对话模式 |
-| `/tlmchat global` | 切换全局/私聊可见性 |
+| `/tlmchat mode` | 切换自己的女仆对话模式（按玩家独立生效） |
+| `/tlmchat mode on` | 开启自己的对话模式 |
+| `/tlmchat mode off` | 关闭自己的对话模式 |
+| `/tlmchat global` | 切换自己的全局/私聊可见性偏好（按玩家独立生效） |
 | `/tlmchat rename <名字或 uuid:UUID> <新名字>` | 改名，仅可操作自己的女仆 |
 
 #### 配置项
@@ -114,8 +114,8 @@ tlm_sincerely/
 
 | 配置项 | 默认值 | 说明 |
 |---|---|---|
-| `ChatModeEnabled` | `true` | 聊天栏女仆对话模式 |
-| `GlobalChatVisible` | `true` | 聊天消息是否对全部玩家可见 |
+| `ChatModeEnabled` | `true` | 新玩家的女仆对话模式默认值；玩家可用 `/tlmchat mode` 单独覆盖 |
+| `GlobalChatVisible` | `true` | 新玩家的全局/私聊可见性默认值；玩家可用 `/tlmchat global` 单独覆盖 |
 | `RequirePrefix` | `true` | 是否强制要求 `@` 前缀 |
 | `AutoChatRange` | `5.0` | 无前缀时自动对话范围，`0` 表示禁用 |
 | `PrefixPattern` | `@` | 名字前缀字符 |
@@ -200,6 +200,7 @@ tlm_sincerely/
 - 玩家可通过命令查看、导出、删除记忆，或触发 AI 回顾补写。
 - 记忆文件按女仆 UUID 持久化，服务端重启后保留。
 - 女仆经神龛/胶片复活后记忆与名字自动延续（按胶片快照迁移；祭坛配方复活暂不覆盖）。
+- 安装 [MaidFileManager](https://github.com/zgxhzhr/MaidFileManager)（`maid_file_manager` 1.4.0+，可选联动）后，导出 `.maid` 女仆档案会自动携带该女仆的全部记忆；跨存档、跨整合包导入（含 1.20.1 Forge ↔ 1.21.1 NeoForge 跨版本）后记忆自动跟随到新女仆。同一档案对同一玩家重复导入时会先备份旧记忆文件再覆盖；未安装该模组时无此行为，其余功能不受影响。
 
 #### 相关命令
 
@@ -299,8 +300,8 @@ tlm_sincerely/
 | `/tlmchat to` | 玩家 | 服务端 | 按名字选择女仆 |
 | `/tlmchat uuid` | 玩家 | 服务端 | 按 UUID 选择女仆 |
 | `/tlmchat list` | 玩家 | 服务端 | 列出附近女仆 |
-| `/tlmchat mode` | 玩家 | 服务端 | 切换对话模式 |
-| `/tlmchat global` | 玩家 | 服务端 | 切换全局/私聊 |
+| `/tlmchat mode` | 玩家 | 服务端 | 切换自己的对话模式（按玩家生效） |
+| `/tlmchat global` | 玩家 | 服务端 | 切换自己的全局/私聊偏好（按玩家生效） |
 | `/tlmchat rename` | 仅女仆主人 | 服务端 | 女仆改名 |
 | `/tlmmemory` | 仅女仆主人 | 服务端 | 记忆管理 |
 | `/tlmautowork compat report` | 玩家 | 服务端 | 查看问题任务 |
@@ -468,7 +469,7 @@ tlm_sincerely/
 | 兼容报告 | `priority/autowork/compat/` | [docs/自动切换工作模块.md](docs/自动切换工作模块.md) |
 | 自动工作 GUI | `client/gui/autowork/` | [docs/自动切换工作模块.md](docs/自动切换工作模块.md) |
 | 客户端预设库 | `client/autowork/` | [docs/自动切换工作模块.md](docs/自动切换工作模块.md) |
-| 记忆系统 | `memory/`、`ai/tool/MaidMemoryTool.java`、`ai/context/MaidMemoryContext.java` | [docs/简易记忆系统模块.md](docs/简易记忆系统模块.md) |
+| 记忆系统 | `memory/`、`memory/compat/MaidFileManagerBridge.java`、`ai/tool/MaidMemoryTool.java`、`ai/context/MaidMemoryContext.java` | [docs/简易记忆系统模块.md](docs/简易记忆系统模块.md) |
 | 命令执行 | `command/`、`ai/tool/MaidCommandTool.java` | [docs/女仆命令执行模块.md](docs/女仆命令执行模块.md) |
 | 配置系统 | `config/`、`client/gui/ConfigScreen.java` | 无单独文档 |
 | 客户端集成 | `client/network/`、`client/jade/`、`mixin/` | 无单独文档 |

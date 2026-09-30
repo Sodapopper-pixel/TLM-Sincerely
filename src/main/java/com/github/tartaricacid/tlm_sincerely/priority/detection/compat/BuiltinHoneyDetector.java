@@ -49,7 +49,9 @@ public final class BuiltinHoneyDetector implements TaskWorkDetector {
             return unavailable(context, task, "MAID_NOT_MOVABLE");
         }
         boolean hasShears = maid.getMainHandItem().canPerformAction(ToolActions.SHEARS_HARVEST);
-        boolean hasBottle = hasStack(maid.getAvailableInv(false), Items.GLASS_BOTTLE);
+        // 与 TLM MaidCollectHoneyTask.start 一致：取瓶走含手库存视图，
+        // 否则瓶子拿在手上时会被漏报为无瓶。
+        boolean hasBottle = hasStack(maid.getAvailableInv(true), Items.GLASS_BOTTLE);
         if (!hasShears && !hasBottle) {
             return unavailable(context, task, "NO_BOTTLE_OR_SHEARS");
         }

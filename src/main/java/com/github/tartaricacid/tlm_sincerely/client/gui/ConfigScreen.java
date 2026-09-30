@@ -166,6 +166,36 @@ public final class ConfigScreen {
                 .build());
 
         multiTask.add(entryBuilder.startIntField(
+                        Component.translatable("config.tlm_sincerely.multi_task.reverse_switch_window"),
+                        PriorityConfig.REVERSE_SWITCH_WINDOW_TICKS.get())
+                .setDefaultValue(240)
+                .setMin(20)
+                .setMax(12000)
+                .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.reverse_switch_window.tooltip"))
+                .setSaveConsumer(PriorityConfig.REVERSE_SWITCH_WINDOW_TICKS::set)
+                .build());
+
+        multiTask.add(entryBuilder.startIntField(
+                        Component.translatable("config.tlm_sincerely.multi_task.reverse_switch_threshold"),
+                        PriorityConfig.REVERSE_SWITCH_THRESHOLD.get())
+                .setDefaultValue(2)
+                .setMin(1)
+                .setMax(20)
+                .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.reverse_switch_threshold.tooltip"))
+                .setSaveConsumer(PriorityConfig.REVERSE_SWITCH_THRESHOLD::set)
+                .build());
+
+        multiTask.add(entryBuilder.startIntField(
+                        Component.translatable("config.tlm_sincerely.multi_task.reverse_switch_cooldown"),
+                        PriorityConfig.REVERSE_SWITCH_COOLDOWN_TICKS.get())
+                .setDefaultValue(200)
+                .setMin(20)
+                .setMax(12000)
+                .setTooltip(Component.translatable("config.tlm_sincerely.multi_task.reverse_switch_cooldown.tooltip"))
+                .setSaveConsumer(PriorityConfig.REVERSE_SWITCH_COOLDOWN_TICKS::set)
+                .build());
+
+        multiTask.add(entryBuilder.startIntField(
                         Component.translatable("config.tlm_sincerely.multi_task.detection_block_budget"),
                         PriorityConfig.DETECTION_BLOCK_BUDGET_PER_TICK.get())
                 .setDefaultValue(256)

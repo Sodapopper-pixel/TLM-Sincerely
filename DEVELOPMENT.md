@@ -1,5 +1,7 @@
 # 开发手册与注意事项
 
+> 注记：本文件自 `0da3fbe`（分支重命名 1.21.1→1.21.1neo 主支、main→1.20.1forge 维护支）起与 `1.21.1neo` 分支分叉，内容以本分支（Forge 1.20.1）为主；平台无关的通用教训可在两条分支间 cherry-pick 互移（口径见 AGENTS.md「文档分层规约」）。
+
 ## 项目结构
 
 ```
@@ -459,6 +461,22 @@ Mixin 0.8.5 最大支持 `JAVA_13`，不能写 `JAVA_17`。写错会导致 Mixin
 - **配置页要即时重绑，不要引入"未应用"中间态**：`AutoWorkConfigScreen` 对该页女仆的增删改序/改名必须直接写本地库并重发 `SetMaidAutoWorkPresetC2SPacket`（`rebakeActivePreset()`），不要做"改动先挂起、点 `<`/`>` 才生效"的提示条——服务端不会自动同步，玩家会以为保存失败。库与绑定仍是两个概念：只有这只女仆的页面在改动时才重绑，其他女仆与推送入库都不受影响。
 - **攻击检测不要直接读 `findFirstValidAttackTarget(maid)`**：它读的是 `NEAREST_VISIBLE_LIVING_ENTITIES`/`NEAREST_LIVING_ENTITIES` 记忆，而那份记忆的扫描范围由女仆**当前**任务决定；同时 `maid.canAttack` 会把判定委托给当前任务。结果可能给出"切过去后 TLM 的 `StopAttackingIfTargetInvalid#farAway` 立刻丢弃"的假目标，表现为女仆切入攻击工作后原地发呆。正确做法是用 `IMaidTask.searchDimension/searchRadius` 建搜索盒，并按该任务自己的 `farAway` 语义比较距离（`TaskAttack`：跟随模式按主人到目标；`TaskBowAttack`：女仆到目标），再配合 `attackTask.canAttack` 与 `canSee`。
 - **Jade 开发环境会断言插件 UID 翻译**：`JadeClient.onGui` 对每个 `getUid()` 要求存在 `config.jade.plugin_<namespace>.<path>`（本模组即 `config.jade.plugin_tlm_sincerely.auto_work`）。缺 key 时 `AssertionError` 会在加载 overlay 阶段崩客户端（正式包通常不断言）。信息栏正文仍用 `jade.tlm_sincerely.auto_work.active`。
+
+### 2026-09-29 移植主支审查修复（P1×6 + P2）与 MaidFileManager 联动（forge 线，compileJava + build 验证）
+
+- **"Forge correct() 空安全"是错误结论，`defineInList` 的坑两条线都有**：实机整合包（Forge 47.x）`tlm_sincerely-common.toml` 中 `memory = {}` 空表 → `correct()` 对缺失键以 null 调校验器 → 不可变 `List.of(...).contains(null)` 抛 NPE，且 FML 3.0.x 同样只计 "1 errors found" 不进日志。连锁反应比主支那次更直观：配置 NPE → 资源重载失败 → Minecraft "恢复模式"清空全部已选资源包（`Caught error loading resourcepacks, removing all selected resourcepacks`）→ 中文语言包被移除、文本回退英文 → 创建世界时崩溃。修复同主支：`new ArrayList<>(List.of(...))`。**此前 HANDOFF/主支记忆里"Forge 的 correct() 是空安全的、本分支不存在该问题"的判断不成立，两线规则统一：allowedValues 必须可变。**
+- **跨 loader cherry-pick 会把 `neoforge.mods.toml` 的改动按文件相似度映射到本分支 `mods.toml`**：git rename detection 落上的是 NeoForge 1.21 语法（`type = "optional"`），Forge 1.20.1 的段格式是 `mandatory = false`。跨线搬运 mods.toml 必须人工核对段格式，不能信 auto-merge。
+- **Forge 1.20.1 的 `@EventBusSubscriber` 必须显式 `bus = Mod.EventBusSubscriber.Bus.MOD`**：`AutoWorkConfigReloader` 监听 `ModConfigEvent.Reloading`（IModBusEvent），不写 bus 会被注册到 FORGE 总线导致事件永远不触发（Forge 1.20.1 没有 FML 4.x 的按 IModBusEvent 自动分流）。
+- **mixin refmap 只为 vanilla 混淆目标生成条目**：本模组 12 个 mixin 在 refmap 里只有 2 条（`renderTooltip`、`sendSystemMessage`，都是 vanilla 方法），注入 TLM/本模组类目标的条目不需要 SRG remap——对照检查 refmap 时不要把"条目数 ≪ mixin 数"误判为生成缺失。
+- **Forge 1.20.1 的 `PacketDistributor` 没有静态 `sendToServer`**：C2S 走 `AutoWorkNetworking.channel().sendToServer(...)`；S2C 单发统一封装在 `AutoWorkNetworking.sendToPlayer(player, payload)`（`channel().send(PacketDistributor.PLAYER.with(() -> player), ...)`），与主支 NeoForge 版同名 API 对齐，减少跨线 cherry-pick 冲突面。
+- **平台无关教训自主支 2026-09-28 节互移**（详见主支 DEVELOPMENT.md 同日节，适用本分支）：mixin finalness 用 `@Final` 注解（无成员标记注解，不能写 `@Final(remap = false)`）；TLM `tryCompressBeforeChat` 延迟路径要求维护标记按女仆 UUID 追踪而非仅 ThreadLocal；TLM HTTP 回调线程访问世界状态必须 `server.execute`，且 `shouldStopChat` 静默 return 不触发回调——登记表必须有时间戳兜底清扫；网络包 encode 端计数必须 `Math.min` 到 decode 上限；扫描型 Detector 一律 `getRestrictRadius() - 1`；evidence 字符串匹配用精确常量；`getPersistentData()` 顶层键退出重进保留但死亡重生回退（需跨死亡放 `PlayerPersisted`）；JDK Proxy 不自动执行接口 default 方法（`isAvailable()` 要显式返回 `true`）与 Object 方法。
+
+### 联机进服即断连：命令树 argument type 未进 registry（2026-09-30，双实例复现 + JFR 取证，已结案）
+- **症状与表象**：联机（LAN/FRP 服务器）进服数秒即被踢，客户端报 `Internal Exception: io.netty.handler.codec.DecoderException: java.lang.IndexOutOfBoundsException: readerIndex(N)+length(1) exceeds writerIndex(N)`，**客户端 latest.log/debug.log 完全无堆栈**（vanilla `Connection.exceptionCaught` 只 disconnect 不写日志，踢出理由只显示在断开画面）；单人不复现（loopback 同走 wire，但玩家环境数据无触发差异）
+- **完整排查链**：round-trip 测试证明 release wire 同 jar 编解码自洽（`releasewire` 测试包，保留）→ 排除 schema 内部缺陷与 1MiB 截断 → 本地双实例（ForgeGradle dev，两实例同 classpath）复现成功排除"两端 jar 混用" → **JFR 异常事件**（`-XX:StartFlightRecording=...,settings=profile` + `jcmd JFR.start jdk.JavaExceptionThrow#enabled=true`，JFR 的 `dumponexit` 要进程退出才落盘、运行中用 `jcmd JFR.dump`）拿到 vanilla 吞掉的完整堆栈：越界点在 **`ClientboundCommandsPacket.readNode` 的 `readVarIntArray`**——是**命令树同步包**，与本模组网络包无关
+- **根因**：Forge 47 的命令树包对 argument 节点写的是 `BuiltInRegistries.COMMAND_ARGUMENT_TYPE.getId(serializer)`（registry 数字 id），而 `ArgumentTypeInfos.registerByClass` **只填 BY_CLASS map 不进 registry**——本模组 `UnicodeWordArgument` 只调了 registerByClass，写出 id=-1，客户端反查 null、整棵树字节流错位越界。直接 `Registry.register` 又会在 mod 构造期撞 "Can not register to a locked registry"——**正解是 MOD 总线 `RegisterEvent`（NeoForge 21.1 主支早已用 `DeferredRegister` 修过同一坑，forge 线代码从旧版本 fork 没带上修复；本次已对齐主支 DeferredRegister 模式）**
+- **双实例 dev 联机环境（本分支长期可用）**：`build.gradle` runs 块新增 `joiner` run（workingDirectory `run2`、`args --username TesterB`），`gradlew runClient`（host，run/）+ `gradlew runJoiner`（joiner，run2/）即可双开；FG 的 dev mod 通过 `MOD_CLASSES` 环境变量定位（`<modid>%%<classes dir>;...`），手动 java 启动第二实例必须带上，否则 mixin config 资源读不到直接 `MixinInitialisationError`；两实例离线用户名必须不同，否则被 "此名称已被占用" 拒绝（LAN 下前一会话未超时释放也会报这个，稍等重连即可）
+- **run/ 目录分支隔离**：默认 workingDirectory 两分支共用 `run/`，曾混入主支 NeoForge jar 导致 forge 启动失败（移入 `.tmp-mdk/run-mods-1.21.1-backup/`）；建议主支把 workingDirectory 改到独立目录实现分支级隔离
 
 ## 测试流程
 

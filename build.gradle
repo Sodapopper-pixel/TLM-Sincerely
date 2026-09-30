@@ -47,6 +47,12 @@ minecraft {
         client {
             property 'forge.enabledGameTestNamespaces', mod_id
         }
+        joiner {
+            // 联机双开的第二客户端实例（host 用 runClient 开局域网，joiner 用 runJoiner 连入）。
+            // 用户名与 host 的默认 "Dev" 区分开，避免离线模式同名被拒。
+            workingDirectory project.file('run2')
+            args '--username', 'TesterB'
+        }
         server {
             property 'forge.enabledGameTestNamespaces', mod_id
             args '--nogui'

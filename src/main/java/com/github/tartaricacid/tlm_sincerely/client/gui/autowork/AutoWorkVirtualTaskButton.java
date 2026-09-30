@@ -1,7 +1,6 @@
 package com.github.tartaricacid.tlm_sincerely.client.gui.autowork;
 
 import com.github.tartaricacid.tlm_sincerely.client.network.ClientAutoWorkService;
-import com.github.tartaricacid.tlm_sincerely.config.subconfig.PriorityConfig;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkNetworking;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkSnapshot;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.SetMaidAutoWorkC2SPacket;
@@ -31,6 +30,8 @@ import java.util.UUID;
  *
  * <p>One of four texture rows is chosen by the (globalOn, enabled) pair:
  * {@code v0 = normal-off, v30 = global-off, v60 = normal-on, v90 = global-on}.
+ * {@code globalOn} is the server-authoritative snapshot value (COMMON config
+ * is not synced to clients), not the local {@code PriorityConfig.ENABLED}.
  * The label is drawn black, centered inside the 63×19 click area.
  *
  * <p>Hover does not switch texture (the four states are already exhaustive)
@@ -67,8 +68,9 @@ public final class AutoWorkVirtualTaskButton extends AbstractWidget {
 
     @Override
     public void onClick(double mouseX, double mouseY) {
-        boolean globalOn = PriorityConfig.ENABLED.get();
-        if (!globalOn) {
+        // Global switch is server-authoritative (COMMON config is not synced
+        // to clients); read the snapshot value with a local fallback.
+        if (!ClientAutoWorkService.get().globalEnabledOrDefault()) {
             setFocused(false);
             LOGGER.debug("Ignored auto-work toggle while globally disabled: maid={}, hovered={}, focused={}",
                     maidId, isHovered(), isFocused());
@@ -96,7 +98,7 @@ public final class AutoWorkVirtualTaskButton extends AbstractWidget {
         RenderSystem.enableDepthTest();
         boolean enabled = ClientAutoWorkService.get().findMaid(maidId)
                 .map(AutoWorkSnapshot.MaidEntry::enabled).orElse(false);
-        boolean globalOn = PriorityConfig.ENABLED.get();
+        boolean globalOn = ClientAutoWorkService.get().globalEnabledOrDefault();
         int v;
         if (!globalOn) {
             v = enabled ? TEX_V_GLOBAL_ON : TEX_V_GLOBAL_OFF;
@@ -125,7 +127,7 @@ public final class AutoWorkVirtualTaskButton extends AbstractWidget {
         tips.add(getMessage().copy().withStyle(ChatFormatting.GOLD));
         tips.add(Component.translatable("gui.tlm_sincerely.task.auto_switch.desc")
                 .withStyle(ChatFormatting.GRAY));
-        if (!PriorityConfig.ENABLED.get()) {
+        if (!ClientAutoWorkService.get().globalEnabledOrDefault()) {
             tips.add(Component.translatable("gui.tlm_sincerely.task.auto_switch.disabled_hint")
                     .withStyle(ChatFormatting.RED));
         }

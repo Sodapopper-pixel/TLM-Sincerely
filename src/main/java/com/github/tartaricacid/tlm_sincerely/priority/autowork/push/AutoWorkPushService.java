@@ -1,20 +1,16 @@
 package com.github.tartaricacid.tlm_sincerely.priority.autowork.push;
 
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkPreset;
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.AutoWorkStateService;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkNetworking;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkPresetData;
+import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkServerHandler;
 import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.AutoWorkPushApplyS2CPacket;
-import com.github.tartaricacid.touhoulittlemaid.entity.task.TaskManager;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.PacketDistributor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,7 +68,9 @@ public final class AutoWorkPushService {
     /** Entry point for the sender's C2S offer packet. Server thread only. */
     public void handleOffer(ServerPlayer sender, boolean broadcast, String targetName,
                             List<AutoWorkPresetData> payload) {
-        List<AutoWorkPreset> presets = sanitize(payload);
+        // Shared with the login seed path: unregistered uids and malformed
+        // entries are dropped before anything is stored or relayed.
+        List<AutoWorkPresetData> presets = AutoWorkServerHandler.sanitizePresets(payload);
         if (presets.isEmpty()) {
             sender.sendSystemMessage(Component.translatable(
                     "command.tlm_sincerely.autowork.push.empty").withStyle(ChatFormatting.RED));
@@ -145,13 +143,8 @@ public final class AutoWorkPushService {
             notifySender(offer, "command.tlm_sincerely.autowork.push.timeout", ChatFormatting.GRAY);
             return true;
         }
-        List<AutoWorkPresetData> payload = new ArrayList<>(offer.presets.size());
-        for (AutoWorkPreset preset : offer.presets) {
-            payload.add(AutoWorkPresetData.from(preset));
-        }
-        AutoWorkNetworking.channel().send(
-                PacketDistributor.PLAYER.with(() -> target),
-                new AutoWorkPushApplyS2CPacket(payload));
+        List<AutoWorkPresetData> payload = List.copyOf(offer.presets);
+        AutoWorkNetworking.sendToPlayer(target, new AutoWorkPushApplyS2CPacket(payload));
         notifySender(offer, "command.tlm_sincerely.autowork.push.success", ChatFormatting.GREEN);
         LOGGER.info("[AutoWorkPush] {} accepted push from {} ({} presets)",
                 target.getName().getString(), offer.senderName, offer.presets.size());
@@ -245,43 +238,15 @@ public final class AutoWorkPushService {
                                 "/tlmautowork preset " + key + " " + token)));
     }
 
-    private static List<String> presetNames(List<AutoWorkPreset> presets) {
+    private static List<String> presetNames(List<AutoWorkPresetData> presets) {
         List<String> names = new ArrayList<>();
         for (int i = 0; i < presets.size() && i < MAX_NAME_DISPLAY; i++) {
-            names.add(presets.get(i).getName());
+            names.add(presets.get(i).name());
         }
         if (presets.size() > MAX_NAME_DISPLAY) {
             names.add("…");
         }
         return names;
-    }
-
-    /** Drops malformed payload entries and task UIDs this server does not know. */
-    private static List<AutoWorkPreset> sanitize(List<AutoWorkPresetData> payload) {
-        List<AutoWorkPreset> presets = new ArrayList<>();
-        if (payload != null) {
-            for (AutoWorkPresetData data : payload) {
-                if (data == null || data.id() == null) {
-                    continue;
-                }
-                String name = data.name() == null ? "" : data.name().trim();
-                name = name.replace('\u00a7', ' ').trim();
-                if (name.isEmpty()) {
-                    continue;
-                }
-                List<ResourceLocation> order = new ArrayList<>();
-                for (ResourceLocation task : AutoWorkStateService.sanitizeOrder(data.order())) {
-                    if (TaskManager.findTask(task).isPresent()) {
-                        order.add(task);
-                    }
-                }
-                presets.add(new AutoWorkPreset(data.id(), name, order));
-                if (presets.size() >= AutoWorkPresetData.MAX_PRESETS) {
-                    break;
-                }
-            }
-        }
-        return presets;
     }
 
     private static final class Offer {
@@ -290,12 +255,12 @@ public final class AutoWorkPushService {
         final String senderName;
         final UUID targetUuid;
         final String targetName;
-        final List<AutoWorkPreset> presets;
+        final List<AutoWorkPresetData> presets;
         final int deadlineTick;
         final int timeoutSeconds;
 
         Offer(UUID token, UUID senderUuid, String senderName, UUID targetUuid, String targetName,
-              List<AutoWorkPreset> presets, int deadlineTick, int timeoutSeconds) {
+              List<AutoWorkPresetData> presets, int deadlineTick, int timeoutSeconds) {
             this.token = token;
             this.senderUuid = senderUuid;
             this.senderName = senderName;

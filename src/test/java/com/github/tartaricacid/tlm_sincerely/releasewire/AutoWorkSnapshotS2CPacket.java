@@ -1,23 +1,17 @@
-package com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets;
+package com.github.tartaricacid.tlm_sincerely.releasewire;
 
-import com.github.tartaricacid.tlm_sincerely.client.network.ClientAutoWorkService;
-import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.AutoWorkSnapshot;
+
+import com.github.tartaricacid.tlm_sincerely.releasewire.AutoWorkSnapshot;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.function.Supplier;
 
 /**
  * S2C snapshot carrying the server-authoritative maid state (bound snapshots
- * and compat entries) plus the server-authoritative global auto work switch
- * (COMMON config is not synced to clients). The client library is local and
- * never sent here.
+ * and compat entries). The client library is local and never sent here.
  */
 public final class AutoWorkSnapshotS2CPacket {
     public static final int INDEX = 0;
@@ -32,28 +26,18 @@ public final class AutoWorkSnapshotS2CPacket {
 
     public static void encode(AutoWorkSnapshotS2CPacket msg, FriendlyByteBuf buf) {
         buf.writeVarInt(msg.snapshot.revision());
-        // Server-authoritative global switch; see AutoWorkSnapshot.
-        buf.writeBoolean(msg.snapshot.globalEnabled());
 
         List<AutoWorkSnapshot.CompatEntry> compatEntries = msg.snapshot.compatEntries();
-        // Clamp both list sizes to the decode caps as well: a decoder
-        // exception closes the connection, so the encoder must never emit a
-        // count the receiver would reject (same contract as order below and
-        // AutoWorkPresetData.encode).
-        int compatSize = Math.min(compatEntries.size(), MAX_COMPAT_ENTRIES);
-        buf.writeVarInt(compatSize);
-        for (int i = 0; i < compatSize; i++) {
-            AutoWorkSnapshot.CompatEntry entry = compatEntries.get(i);
+        buf.writeVarInt(compatEntries.size());
+        for (AutoWorkSnapshot.CompatEntry entry : compatEntries) {
             buf.writeResourceLocation(entry.taskUid());
             buf.writeUtf(entry.level(), 32);
             buf.writeUtf(entry.reason(), 128);
         }
 
         List<AutoWorkSnapshot.MaidEntry> maids = msg.snapshot.maids();
-        int maidSize = Math.min(maids.size(), MAX_MAIDS);
-        buf.writeVarInt(maidSize);
-        for (int i = 0; i < maidSize; i++) {
-            AutoWorkSnapshot.MaidEntry entry = maids.get(i);
+        buf.writeVarInt(maids.size());
+        for (AutoWorkSnapshot.MaidEntry entry : maids) {
             buf.writeUUID(entry.maidId());
             buf.writeBoolean(entry.enabled());
             buf.writeUUID(entry.presetId());
@@ -63,8 +47,8 @@ public final class AutoWorkSnapshotS2CPacket {
             // never make the client reject the snapshot and drop the link.
             int orderSize = Math.min(order.size(), MAX_ORDER);
             buf.writeVarInt(orderSize);
-            for (int j = 0; j < orderSize; j++) {
-                buf.writeResourceLocation(order.get(j));
+            for (int i = 0; i < orderSize; i++) {
+                buf.writeResourceLocation(order.get(i));
             }
             buf.writeBoolean(entry.snapshotBaked());
             buf.writeVarInt(entry.stateRevision());
@@ -73,7 +57,6 @@ public final class AutoWorkSnapshotS2CPacket {
 
     public static AutoWorkSnapshotS2CPacket decode(FriendlyByteBuf buf) {
         int revision = buf.readVarInt();
-        boolean globalEnabled = buf.readBoolean();
 
         int compatCount = buf.readVarInt();
         if (compatCount < 0 || compatCount > MAX_COMPAT_ENTRIES) {
@@ -110,19 +93,13 @@ public final class AutoWorkSnapshotS2CPacket {
         }
 
         return new AutoWorkSnapshotS2CPacket(
-                new AutoWorkSnapshot(revision, globalEnabled, compatEntries, maids)
+                new AutoWorkSnapshot(revision, compatEntries, maids)
         );
     }
 
-    public static void handle(AutoWorkSnapshotS2CPacket msg, Supplier<NetworkEvent.Context> ctx) {
-        // S2C packets run on the network thread; the client cache is
-        // safe to mutate from any thread because all consumers read it
-        // from the main client thread. We dispatch via DistExecutor to
-        // avoid a class-not-found if a server-only build accidentally
-        // touches the client cache reference.
-        ctx.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-                () -> () -> ClientAutoWorkService.get().accept(msg.snapshot)));
-        ctx.get().setPacketHandled(true);
+    /** Round-trip 测试只覆盖 encode/decode；handle 依赖客户端类，不在测试范围。 */
+    public static void handle(AutoWorkSnapshotS2CPacket msg, Object ctx) {
+        throw new UnsupportedOperationException();
     }
 
     public AutoWorkSnapshot snapshot() {

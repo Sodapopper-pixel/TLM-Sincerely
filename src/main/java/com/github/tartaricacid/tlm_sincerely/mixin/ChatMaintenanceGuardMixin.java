@@ -18,11 +18,6 @@ public abstract class ChatMaintenanceGuardMixin {
 
     @Inject(method = "chat", at = @At("HEAD"), cancellable = true)
     private void onChat(String message, ChatClientInfo clientInfo, ServerPlayer player, CallbackInfo ci) {
-        if (ci.isCancelled()) {
-            // Another HEAD guard (e.g. a pending command confirmation) already
-            // rejected this chat; do not book it as an ordinary chat.
-            return;
-        }
         MaidAIChatManager self = (MaidAIChatManager) (Object) this;
         UUID maidUuid = self.getMaid().getUUID();
 

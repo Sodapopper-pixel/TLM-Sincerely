@@ -2,15 +2,16 @@ package com.github.tartaricacid.tlm_sincerely.priority.autowork.network;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
 import net.minecraftforge.network.NetworkRegistry;
+import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 import net.minecraftforge.network.simple.SimpleChannel.MessageBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -35,7 +36,9 @@ import com.github.tartaricacid.tlm_sincerely.priority.autowork.network.packets.S
  */
 public final class AutoWorkNetworking {
     private static final Logger LOGGER = LoggerFactory.getLogger(AutoWorkNetworking.class);
-    private static final String PROTOCOL_VERSION = "3";
+    // v4: AutoWorkSnapshot gained the server-authoritative globalEnabled flag
+    // (COMMON config is not synced to clients by either loader).
+    public static final String PROTOCOL_VERSION = "4";
 
     private static final ResourceLocation CHANNEL_ID =
             new ResourceLocation(SincerelyExtension.MOD_ID, "auto_work");
@@ -146,8 +149,9 @@ public final class AutoWorkNetworking {
         return ch;
     }
 
-    /** For tests; not part of the public API. */
-    public static Optional<SimpleChannel> channelOptional() {
-        return Optional.ofNullable(channel);
+    /** Server-side send helper (used by AutoWorkServerHandler / AutoWorkPushService). */
+    public static void sendToPlayer(ServerPlayer player, Object payload) {
+        channel().send(PacketDistributor.PLAYER.with(() -> player), payload);
     }
+
 }

@@ -3,6 +3,7 @@ package com.github.tartaricacid.tlm_sincerely.mixin;
 import com.github.tartaricacid.tlm_sincerely.memory.MemoryMaintenanceManager;
 import com.github.tartaricacid.touhoulittlemaid.entity.chatbubble.ChatBubbleManager;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -14,6 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class ChatBubbleSilenceMixin {
 
     @Shadow
+    @Final
     private EntityMaid maid;
 
     @Inject(method = "addLLMChatText", at = @At("HEAD"), cancellable = true)

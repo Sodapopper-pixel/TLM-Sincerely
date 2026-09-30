@@ -1,8 +1,8 @@
 package com.github.tartaricacid.tlm_sincerely.command;
 
+import com.github.tartaricacid.tlm_sincerely.chatbar.ChatBarPlayerState;
 import com.github.tartaricacid.tlm_sincerely.chatbar.MaidFinder;
 import com.github.tartaricacid.tlm_sincerely.chatbar.MaidFinder.FindResult;
-import com.github.tartaricacid.tlm_sincerely.config.subconfig.ChatBarConfig;
 import com.github.tartaricacid.touhoulittlemaid.ai.manager.entity.ChatClientInfo;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
 import com.mojang.brigadier.Command;
@@ -60,8 +60,8 @@ public final class ChatCommand {
 
     private static int toggleChatMode(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         ServerPlayer player = context.getSource().getPlayerOrException();
-        boolean current = ChatBarConfig.CHAT_MODE.get();
-        ChatBarConfig.CHAT_MODE.set(!current);
+        boolean current = ChatBarPlayerState.isChatModeEnabled(player);
+        ChatBarPlayerState.setChatModeEnabled(player, !current);
 
         String key = !current ? "chat.tlm_sincerely.mode_enabled" : "chat.tlm_sincerely.mode_disabled";
         player.sendSystemMessage(Component.translatable(key).withStyle(ChatFormatting.GREEN));
@@ -70,7 +70,7 @@ public final class ChatCommand {
 
     private static int enableChatMode(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         ServerPlayer player = context.getSource().getPlayerOrException();
-        ChatBarConfig.CHAT_MODE.set(true);
+        ChatBarPlayerState.setChatModeEnabled(player, true);
         player.sendSystemMessage(Component.translatable("chat.tlm_sincerely.mode_enabled")
                 .withStyle(ChatFormatting.GREEN));
         return Command.SINGLE_SUCCESS;
@@ -78,7 +78,7 @@ public final class ChatCommand {
 
     private static int disableChatMode(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         ServerPlayer player = context.getSource().getPlayerOrException();
-        ChatBarConfig.CHAT_MODE.set(false);
+        ChatBarPlayerState.setChatModeEnabled(player, false);
         player.sendSystemMessage(Component.translatable("chat.tlm_sincerely.mode_disabled")
                 .withStyle(ChatFormatting.GREEN));
         return Command.SINGLE_SUCCESS;
@@ -86,9 +86,9 @@ public final class ChatCommand {
 
     private static int toggleGlobal(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         ServerPlayer player = context.getSource().getPlayerOrException();
-        boolean current = ChatBarConfig.GLOBAL_VISIBLE.get();
-        ChatBarConfig.GLOBAL_VISIBLE.set(!current);
-        
+        boolean current = ChatBarPlayerState.isGlobalVisible(player);
+        ChatBarPlayerState.setGlobalVisible(player, !current);
+
         String key = !current ? "chat.tlm_sincerely.global_enabled" : "chat.tlm_sincerely.private_enabled";
         player.sendSystemMessage(Component.translatable(key).withStyle(ChatFormatting.GREEN));
         return Command.SINGLE_SUCCESS;

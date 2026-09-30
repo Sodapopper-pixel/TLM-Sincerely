@@ -2,6 +2,7 @@ package com.github.tartaricacid.tlm_sincerely.config.subconfig;
 
 import net.minecraftforge.common.ForgeConfigSpec;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public final class MemoryConfig {
@@ -51,7 +52,10 @@ public final class MemoryConfig {
         SHOW_SOURCE = builder.define("ShowSource", false);
 
         builder.comment("Preview mode for archive memories: 'full' (key + truncated value) or 'keys_only' (key only)");
-        PREVIEW_MODE = builder.defineInList("PreviewMode", "full", List.of("full", "keys_only"));
+        // allowedValues 必须是可变 List：Forge ModConfigSpec.correct 对缺失键以 null 调用校验器，
+        // 而 JDK 不可变 List.of(...).contains(null) 会抛 NPE（首次创建配置文件时静默炸掉整个加载流程，
+        // 连锁触发资源包清空——游戏文本回退英文——以及创建世界时崩溃）
+        PREVIEW_MODE = builder.defineInList("PreviewMode", "full", new ArrayList<>(List.of("full", "keys_only")));
 
         builder.pop();
     }
